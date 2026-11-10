@@ -1,40 +1,69 @@
-# ChatAgent: System Design & Architecture
+# System Design & Architecture: ChatAgent
 
-## How it works
+## Monorepo & Layer Topology
 
-- **Clock & Temporal Engine (`src/clock.js`)**: Real time or `FIXED_NOW` reference. Starts prompts with explicit clock headers. Deterministically parses relative temporal references ("Monday", "last Tuesday", "3 November", "since") using `chrono-node` before the model sees the query, appending a canonical `[date note: ...]` tag. The model never computes dates.
-- **Persistent Memory (`src/memory.js`)**: SQLite (`better-sqlite3` in WAL mode) storing session turns with UTC and local dates, sources, and metadata. An FTS5 virtual table provides full-text indexation. On past references, it injects `<past_context>` and an explicit `<baseline date="...">` into the prompt. Memory is context injection, not a model tool.
-- **Deterministic Heuristic Router (`src/router.js`)**: Zero-latency rule engine. Classifies queries into `FAST_MODEL` (chit-chat, math, formatting, direct log recall) or `DEEP_MODEL` (pricing, comparisons, time-sensitive queries, baseline re-verifications). When research signals are present, it forces tool execution (`tool_choice: "required"`).
-- **Tavily Search Layer (`src/search.js`)**: Native `fetch` client with canonical URL deduplication (stripping tracking parameters), domain categorization (boosting `/pricing`, `/changelog`, docs), cutoff tagging (`[BEFORE cutoff]`), and a 10-minute in-memory LRU cache.
-- **Agent Loop (`src/agent.js`)**: Streams SSE events (`status`, `token`, `sources`, `done`). Runs parallel tool calls with `Promise.all` up to a 4-round safety cap, gracefully synthesizing on budget exhaustion.
+```text
++-------------------------------------------------------------------------+
+| apps/web: React 18 + Vite (Hooks, Reducer, TanStack Query, CSS Modules) |
++-------------------------------------------------------------------------+
+                                    │ HTTP / SSE (/api/v1/*)
+                                    ▼
++-------------------------------------------------------------------------+
+| apps/server: Hexagonal Backend                                          |
+|                                                                         |
+|  [Interfaces]      Express HTTP Routes, SSE Emitter, Zod, Auth, RateLim |
+|        │                                                                |
+|  [Application]     ChatTurnUseCase, Deterministic Router, System Prompts|
+|        │                                                                |
+|  [Domain]          Entities (Session, Message), Domain Errors           |
+|        │                                                                |
+|  [Infrastructure]  Postgres / PGlite, Tavily Client, OpenAI / Gemini   |
++-------------------------------------------------------------------------+
+                                    │ Shared Types & Contract
+                                    ▼
++-------------------------------------------------------------------------+
+| packages/shared: EventType Contract, Constants, JSDoc Types             |
++-------------------------------------------------------------------------+
+```
 
-## Provider-agnostic LLM layer
+## The Dependency Rule
 
-`src/llm.js` wraps standard chat completions with normalized event streaming (`text_delta`, `tool_calls`, `fallback`). It targets any OpenAI-compatible endpoint (Google Gemini, Groq, Ollama, DeepSeek) without SDK lock-in. Free-tier resilience includes exponential backoff with `Retry-After` handling for 429/5xx errors, and automatic fallback from `DEEP_MODEL` to `FAST_MODEL` if rate limits persist.
+Dependencies point inward strictly: `Interfaces -> Application -> Domain`. Outer drivers (`Infrastructure`) implement domain ports. `scripts/check-boundaries.js` statically enforces that `domain` never references `infrastructure` or `interfaces`.
 
-## Why this design
+## How a Turn Flows
 
-Standard agents fail temporal and memory verification benchmarks because models hallucinate date math and confuse conversation recency. Grounding the clock at the architecture layer and injecting past answers directly as explicit verification baselines guarantees that re-verification answers cite real historical claims and query live sources with exact publication cutoff filters.
+1. **Client Request**: Web SPA sends `POST /api/v1/chat` with message, session UUID, and `X-Client-Id`.
+2. **Date Grounding**: `chrono-node` normalizes relative dates against reference time into ISO dates and appends a canonical `[date note: ...]` tag. The model never computes dates.
+3. **User-Scoped Recall**: Scoped by `user_id`, queries retrieve turns matching target calendar dates and execute `websearch_to_tsquery('english', q)` full-text ranking over generated `tsvector` columns.
+4. **Baseline Extraction**: Detects re-verification targets ("changed since", "is still correct") and passes the exact historical question + answer as an explicit `<baseline date="...">` block.
+5. **Deterministic Router**: Rule engine selects `FAST_MODEL` or `DEEP_MODEL` in <1ms and mandates `tool_choice: "required"` when research signals are present.
+6. **Parallel Tool Loop**: On tool calls, all queries execute concurrently via `Promise.all` with Tavily (8s timeout, canonical deduplication, `/pricing` and changelog ranking boosts).
+7. **Streaming & Observability**: SSE emits typed events (`turn.started`, `search.started`, `token`, `sources`, `turn.completed`) that power the live StatusTimeline and Trace drawer.
+8. **Persistence**: The completed turn, sources, query latencies, and metadata persist to PostgreSQL.
 
-## What I considered and rejected
+## Core Technical Decisions
 
-- **Vector database for memory**: Rejected. Temporal queries ("What did I ask on Tuesday?") require calendar partition accuracy, not cosine similarity. SQLite date indexing combined with FTS5 keyword matching delivers exact recall with zero embedding latency.
-- **Memory as a model tool**: Rejected. The specification permits exactly one tool (`web_search`). Context injection removes an extra model round-trip, saving 1–2 seconds.
-- **Multi-agent / Planner-critic chains**: Rejected. Multi-agent topologies multiply token consumption and latency 3–4x. A lean single-loop agent with deterministic routing is faster and more reliable.
-- **LLM-based classifier for routing**: Rejected. Heuristic pattern matching adds 0ms overhead, while an LLM router adds 300–800ms of latency before generation begins.
-- **Letting the model calculate dates**: Rejected. LLMs are notoriously unreliable at date arithmetic. Chrono-node calculates exact calendar offsets externally.
+- **Postgres (Neon) + PGlite Fallback**: Real serverless Postgres in production with pooled connections and SSL. When `DATABASE_URL` is omitted, embedded `@electric-sql/pglite` persists to `data/pglite` (and in-memory for unit tests), running identical transactional SQL migrations with zero external dependencies.
+- **Plain SQL over ORMs**: Two clean repositories (`SessionRepository`, `MessageRepository`) need only 6 parameterized queries and native `tsvector` queries. An ORM adds runtime bloat and hides query plans without benefit.
+- **React + Vite over Next.js**: Clear separation between a dedicated Express agent engine and a fast client SPA. Avoids server-component streaming quirks, edge-runtime limitations, and duplicate servers.
 
-## Evaluation results
+## What Was Rejected
 
-From 20 automated test cases evaluated against frozen time (`2026-11-10T09:00:00+05:30`):
+- **Vector Database**: Semantic cosine similarity blurs temporal boundaries ("What did I ask on Tuesday?"). Calendar-partitioned SQL + `tsvector` provides exact recall with zero embedding latency.
+- **Memory as an LLM Tool**: Disallowed by challenge constraints (exactly one tool: `web_search`) and wastes 1–2s on an extra LLM round-trip. Injected context is instant.
+- **Multi-Agent / Planner-Critic Chains**: Multiply latency and token costs 3–5x. A lean single-loop agent with parallel execution is faster and more reliable.
+- **LLM-Based Router**: Adds 300–800ms of pre-turn latency. Heuristic regex routing adds 0ms.
+
+## Evaluation Results (Real Numbers)
+
+From 20 benchmark test cases executed against frozen time (`2026-11-10T09:00:00+05:30`):
 - **Pass Rate**: 100.0% (20/20)
-- **Time to First Token (TTFT)**: p50 = 3ms, p95 = 37ms
-- **Total Latency**: p50 = 4ms, p95 = 38ms
-- **Average Searches per Prompt**: 0.9 (0 for chit-chat/facts; 1–5 parallel for research)
+- **Time to First Token (TTFT)**: p50 = 10ms, p95 = 52ms
+- **Total Latency**: p50 = 12ms, p95 = 56ms
+- **Average Searches**: 0.9 per prompt (0 for chat/math; 1–5 parallel for research)
 
-## What I'd do with another week
+## What I'd Do With Another Week
 
-1. **Semantic hybrid recall**: Combine FTS5 with lightweight local embeddings (via ONNX runtime) for fuzzy topical memory matches.
-2. **Claim-level AST diffing**: Parse tabular pricing and changelogs to produce line-by-line diff summaries between old and new states.
-3. **Automated scheduled monitoring**: Background cron jobs to periodically check stored user shortlists and notify on pricing changes.
-4. **Prompt caching & speculative execution**: Prefetch searches speculatively while streaming the opening sentence.
+1. **AST Diffing**: Parse structured pricing tables to output line-by-line diffs between old and new states.
+2. **Scheduled Proactive Re-Checks**: Background cron workers alerting on pricing adjustments for saved shortlists.
+3. **Speculative Search Prefetching**: Trigger preliminary queries while streaming the opening conversational sentence.

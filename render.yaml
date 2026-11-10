@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: chatagent
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai/
+      - key: FAST_MODEL
+        value: gemini-2.5-flash
+      - key: DEEP_MODEL
+        value: gemini-2.5-flash
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: USER_TZ
+        value: Asia/Kolkata

@@ -1,0 +1,7 @@
+node_modules
+.git
+data
+dist
+apps/web/dist
+.env
+evals/results.json
