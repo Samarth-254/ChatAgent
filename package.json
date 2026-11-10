@@ -1,0 +1,22 @@
+{
+  "name": "chatagent",
+  "version": "1.0.0",
+  "description": "Production-quality chat agent with web search, cross-session memory, and temporal reasoning",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "chat": "node src/cli.js",
+    "eval": "node evals/run.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "chrono-node": "^2.7.7",
+    "dompurify": "^3.2.4",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "marked": "^15.0.7",
+    "openai": "^4.85.4"
+  }
+}
