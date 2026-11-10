@@ -32,3 +32,4 @@ jobs:
 
       - name: Build Web Application
         run: npm run build
+
