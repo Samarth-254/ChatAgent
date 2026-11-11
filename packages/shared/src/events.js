@@ -5,6 +5,7 @@
  */
 export const EventType = {
   TURN_STARTED: 'turn.started',
+  STATUS_UPDATE: 'status.update',
   ROUTE_DECIDED: 'route.decided',
   DATE_RESOLVED: 'date.resolved',
   SEARCH_STARTED: 'search.started',

@@ -19,7 +19,6 @@ export function processRawResults(results, query, afterDate = null) {
     const { type, boost } = categorizeDomain(item.url, query);
     const score = (typeof item.score === 'number' ? item.score : 0.8) * boost;
 
-    let isBeforeCutoff = false;
     let pub = item.published_date || null;
     if (pub) {
       try {
@@ -34,9 +33,11 @@ export function processRawResults(results, query, afterDate = null) {
         const m = pub.match(/\d{4}-\d{2}-\d{2}/);
         if (m) pub = m[0];
       }
-      if (afterDate && pub && pub < afterDate) {
-        isBeforeCutoff = true;
-      }
+    }
+
+    let postBaseline = 'unknown';
+    if (afterDate && pub) {
+      postBaseline = pub > afterDate;
     }
 
     processed.push({
@@ -47,7 +48,7 @@ export function processRawResults(results, query, afterDate = null) {
       domain,
       type,
       published_date: pub,
-      isBeforeCutoff,
+      postBaseline,
       score
     });
   }
@@ -55,14 +56,33 @@ export function processRawResults(results, query, afterDate = null) {
   return processed.sort((a, b) => b.score - a.score);
 }
 
+export function classifyBaselineChange({ baselineValue, liveValue, sources = [] }) {
+  if (!sources || sources.length === 0) return 'could not verify';
+  const hasPostBaseline = sources.some(s => s.postBaseline === true);
+  const valuesDiffer = Boolean(liveValue && baselineValue && liveValue !== baselineValue);
+
+  if (hasPostBaseline && valuesDiffer) {
+    return 'changed';
+  }
+  if (valuesDiffer) {
+    const hasOfficial = sources.some(s => s.type === 'official');
+    if (hasOfficial) {
+      return 'differs, change date unknown';
+    }
+  }
+  return 'no change found';
+}
+
 export function formatResultsForModel(results, afterDate = null, maxResults = 5) {
   if (!results || results.length === 0) return 'No search results found.';
   return results.slice(0, maxResults).map((r, i) => {
     const pub = r.published_date || 'date unknown';
-    const tag = r.isBeforeCutoff ? ` [BEFORE cutoff ${afterDate}]` : '';
+    const baselineTag = r.postBaseline === true
+      ? ' | postBaseline: true (published after baseline)'
+      : (r.postBaseline === false ? ` | postBaseline: false (published ${pub} <= baseline ${afterDate})` : ' | postBaseline: unknown');
     // Trim content to ~1000 characters for high speed and token efficiency
     const trimmed = r.content.length > 1000 ? r.content.slice(0, 980) + '...' : r.content;
-    return `[${i + 1}] ${r.title} | ${r.domain} | ${r.type} | published: ${pub}${tag}\n${trimmed}`;
+    return `[${i + 1}] ${r.title} | ${r.domain} | ${r.type} | published: ${pub}${baselineTag}\n${trimmed}`;
   }).join('\n\n');
 }
 

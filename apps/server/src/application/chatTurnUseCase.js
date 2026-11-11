@@ -212,7 +212,8 @@ export class ChatTurnUseCase {
     return {
       id: assistantMsgId,
       text: finalAssistantText,
-      meta
+      meta,
+      timings
     };
   }
 }

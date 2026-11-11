@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { extractTopicKeywords, scorePairRelevance, selectBestBaseline } from '../src/domain/recallPlanner.js';
 import { canonicalizeUrl, categorizeDomain } from '../src/domain/urlCanonicalizer.js';
-import { processRawResults, formatResultsForModel } from '../src/domain/resultRanker.js';
+import { processRawResults, formatResultsForModel, classifyBaselineChange } from '../src/domain/resultRanker.js';
 
 test('Domain: extractTopicKeywords strips dates and meta phrases', () => {
   const q = 'Last Tuesday I asked you about Postgres hosting. Has any pricing changed since then?';
@@ -65,4 +65,33 @@ test('Domain: resultRanker trims content to ~1000 chars and limits to 5 results'
   const formatted = formatResultsForModel(processed, null, 5);
   assert.ok(formatted.includes('Test 1'));
   assert.ok(!formatted.includes('A'.repeat(1200)), 'Content must be trimmed');
+});
+
+test('Domain: classifyBaselineChange enforces evidence rule for changes', () => {
+  // 1. Post-baseline dated source with differing value -> changed
+  const postSource = { type: 'official', published_date: '2026-11-05', postBaseline: true };
+  const status1 = classifyBaselineChange({
+    baselineValue: '$19/month',
+    liveValue: '$0.106/CU-hour',
+    sources: [postSource]
+  });
+  assert.equal(status1, 'changed');
+
+  // 2. Pre-baseline official source with differing value -> differs, change date unknown
+  const preSource = { type: 'official', published_date: '2026-11-01', postBaseline: false };
+  const status2 = classifyBaselineChange({
+    baselineValue: '$19/month',
+    liveValue: '$25/month',
+    sources: [preSource]
+  });
+  assert.equal(status2, 'differs, change date unknown');
+
+  // 3. No differing evidence / matching value -> no change found
+  const matchingSource = { type: 'official', published_date: '2026-11-05', postBaseline: true };
+  const status3 = classifyBaselineChange({
+    baselineValue: '$25/month',
+    liveValue: '$25/month',
+    sources: [matchingSource]
+  });
+  assert.equal(status3, 'no change found');
 });

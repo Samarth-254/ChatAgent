@@ -18,7 +18,7 @@
     "id": "last_tuesday_postgres_pricing",
     "prompt": "Last Tuesday I asked you about Postgres hosting. Has any pricing changed since then?",
     "expectSearch": true,
-    "mustMatch": ["3 November|November 3|Tuesday", "Supabase|Neon", "No change found|Changed"],
+    "mustMatch": ["3 November|Tuesday", "Supabase|Neon", "No change found|Changed"],
     "mustNotMatch": []
   },
   {

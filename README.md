@@ -2,29 +2,34 @@
 
 A portfolio-grade full-stack conversational agent featuring deterministic temporal grounding, persistent cross-session memory in PostgreSQL, and real-time parallel web research.
 
+Live demo: <url>
+
 ## Quickstart in 5 Lines
 
 ```bash
 git clone <repo-url> && cd ChatAgent
 npm install
 cp .env.example .env
-# Edit .env with your LLM_API_KEY and TAVILY_API_KEY
+# Edit .env with your LLM_API_KEY and TAVILY_API_KEY (DATABASE_URL is optional)
 npm run dev
 ```
 
-The web application will open at `http://localhost:5173` (proxied to the backend at `http://localhost:3000`).
+The web application opens at `http://localhost:5173` (proxied to the backend at `http://localhost:3000`).
 
-## Monorepo Architecture
+## Environment Variables (.env)
 
-```text
-ChatAgent/
-├── apps/
-│   ├── server/           # Hexagonal Node + Express API & Agent Core
-│   └── web/              # React 18 + Vite SPA (Claude aesthetic, CSS variables)
-├── packages/
-│   └── shared/           # Shared SSE event contract, types, and constants
-└── scripts/              # Boundary checking and maintenance scripts
-```
+| Variable | Required / Optional | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `LLM_API_KEY` | **Required** | API key for OpenAI-compatible endpoint | — |
+| `TAVILY_API_KEY` | **Required** | Tavily Search API key for web research | — |
+| `DATABASE_URL` | *Optional* | Neon Postgres pooled connection string (recommended for persistent memory; if empty, uses in-memory memory) | In-memory |
+| `LLM_BASE_URL` | *Optional* | Base URL for OpenAI-compatible endpoint | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+| `FAST_MODEL` | *Optional* | Lightweight model for routing, tool selection, chat | `gemini-flash-lite-latest` |
+| `DEEP_MODEL` | *Optional* | Model for synthesis and deep verification | `gemini-flash-latest` |
+| `USER_TZ` | *Optional* | User IANA timezone (e.g. `Asia/Kolkata`, `America/New_York`) | System timezone |
+| `PORT` | *Optional* | Web server port | `3000` |
+| `DEMO_SEED` | *Optional* | Set to `1` in in-memory mode to seed demo history | `0` |
+| `FIXED_NOW` | *Optional* | Fixed ISO timestamp for frozen-in-time evaluation | None |
 
 ## Available Scripts
 
@@ -37,23 +42,9 @@ ChatAgent/
 | `npm run check:boundaries` | Enforces hexagonal architecture dependency boundaries |
 | `npm run lint` | Lints entire codebase with ESLint flat config |
 | `npm run format` | Formats all code with Prettier |
-| `npm run eval` | Runs full 20-prompt automated benchmark against live APIs |
-| `npm run eval:mock` | Runs deterministic offline benchmark against simulated services |
+| `npm run eval` | Runs 20-prompt automated benchmark against live APIs |
+| `npm run eval:plumbing` | Runs deterministic offline plumbing test (fake LLM + fake search) |
 | `npm run db:migrate` | Runs transactional SQL migrations on active database |
-
-## Environment Variables (.env)
-
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `LLM_API_KEY` | API key for OpenAI-compatible endpoint | Required |
-| `LLM_BASE_URL` | Base URL for LLM chat completions | `https://generativelanguage.googleapis.com/v1beta/openai/` |
-| `FAST_MODEL` | Lightweight model for general knowledge, chat, and math | `gemini-2.5-flash` |
-| `DEEP_MODEL` | Reasoning model for deep research and live verification | `gemini-2.5-flash` |
-| `TAVILY_API_KEY` | Tavily Search API key | Required for live search |
-| `DATABASE_URL` | Neon Postgres connection string | If empty, runs embedded PGlite in `data/pglite` |
-| `USER_TZ` | User IANA timezone (e.g. `Asia/Kolkata`, `America/New_York`) | `Asia/Kolkata` |
-| `PORT` | Production server port | `3000` |
-| `FIXED_NOW` | Optional ISO timestamp used to freeze time during evaluations | None |
 
 ## Deployment
 

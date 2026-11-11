@@ -25,12 +25,12 @@ function getRequired(key) {
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: isTest ? 'test' : (process.env.NODE_ENV || 'development'),
-  databaseUrl: isTest ? (process.env.DATABASE_URL || '') : getRequired('DATABASE_URL'),
+  databaseUrl: process.env.DATABASE_URL || '',
   llm: {
     apiKey: isTest ? (process.env.LLM_API_KEY || '') : getRequired('LLM_API_KEY'),
     baseURL: process.env.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    fastModel: process.env.FAST_MODEL || 'gemini-2.5-flash',
-    deepModel: process.env.DEEP_MODEL || 'gemini-2.5-flash'
+    fastModel: process.env.FAST_MODEL || 'gemini-2.5-flash-lite',
+    deepModel: process.env.DEEP_MODEL || 'gemini-2.5-flash-lite'
   },
   search: {
     apiKey: isTest ? (process.env.TAVILY_API_KEY || '') : getRequired('TAVILY_API_KEY')

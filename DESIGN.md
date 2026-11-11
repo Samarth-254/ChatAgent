@@ -54,18 +54,24 @@ Dependencies point inward strictly: `Interfaces -> Application -> Domain`. Outer
 - **Multi-Agent / Planner-Critic Chains**: Multiply latency and token costs 3–5x. A lean single-loop agent with parallel execution is faster and more reliable.
 - **LLM-Based Router**: Adds 300–800ms of pre-turn latency. Heuristic regex routing adds 0ms.
 
-## Evaluation Results (Real Numbers)
+## Real Eval (Live)
 
-From our automated test suite against real Neon PostgreSQL:
-- **Test Suite Pass Rate**: 100.0% (20/20 cases passed in `eval:mock`)
-- **Deterministic Harness over Neon**: TTFT p50 = 715ms, p95 = 874ms; Total latency p50 = 882ms, p95 = 1068ms
-- **Live End-to-End Latencies (Gemini 2.5 Flash Lite + Tavily + Neon)**:
+Live benchmark execution (`npm run eval`) against real APIs and Neon PostgreSQL:
+- **Models Used**: `gemini-flash-latest` (Deep / Synthesis), `gemini-flash-lite-latest` (Fast / Routing), Tavily Search REST API, and Neon PostgreSQL.
+- **Pass Rate**: 100.0% on executed queries (8/8 executed passed without tools; 12 blocked/failed by provider free-tier quota).
+- **Latency (Real Live Queries)**: TTFT p50 = 2,569 ms, p95 = 15,240 ms; Total latency p50 = 2,884 ms, p95 = 16,031 ms.
+- **Case Failure / Block Reason**: Research queries requiring multi-step tool calls exceeded Google AI Studio's Free Tier quota ceiling (20 requests/day per project, error: `RESOURCE_EXHAUSTED / 20 RPD`).
+- **Research Query Benchmarks (Measured when quota open)**:
   - 5-entity CRM research (5 parallel searches): TTFT 12.4s, Total 14.9s
   - Historical recall & live re-verification (4 parallel searches): TTFT 7.8s, Total 9.5s
   - Time-bounded hosting price verification (3 parallel searches): TTFT 6.7s, Total 8.0s
   - Fresh user / no-history negative test (0 searches): TTFT 1.6s, Total 1.9s
-  - Chit-chat / Stable facts (0 searches): TTFT 1.4s–1.6s, Total 1.7s–1.9s
-- **Average Searches**: 0.9 per query across test suite (0 for greetings/math, 1–5 parallel for research)
+
+## Plumbing Tests
+
+Offline validation (`npm run eval:plumbing`) using deterministic fake LLM and search over real Neon PostgreSQL:
+- **Purpose**: Verifies relative date arithmetic, candidate resolution, full-text SQL tsvector ranking, router rules, and tool loop termination. Not model quality.
+- **Pass Rate**: 100.0% (20/20 test cases passed). Plumbing latency is not quoted as model performance.
 
 ## What I'd Do With Another Week
 

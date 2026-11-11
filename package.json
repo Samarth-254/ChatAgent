@@ -17,7 +17,7 @@
     "check:boundaries": "node scripts/check-boundaries.js",
     "test": "npm run test --workspace=@chatagent/server && npm run test --workspace=@chatagent/web",
     "eval": "node apps/server/evals/run.js",
-    "eval:mock": "node apps/server/evals/run.js --mock",
+    "eval:plumbing": "node apps/server/evals/run.js --mock",
     "db:migrate": "npm run db:migrate --workspace=@chatagent/server"
   },
   "devDependencies": {

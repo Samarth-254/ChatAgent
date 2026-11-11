@@ -44,15 +44,15 @@ export async function seedEvalDb(db) {
     userId: EVAL_USER_ID,
     role: 'assistant',
     content: `Here is the shortlist for a 20-person sales team as of Monday, 9 November 2026:
-1. **HubSpot Sales Hub**: $50/user/month (Professional tier), excellent inbound tools.
-2. **Pipedrive**: $24/user/month (Advanced plan), intuitive pipeline visualizer.
-3. **Zoho CRM**: $20/user/month (Professional edition), high value for mid-sized teams.
-4. **Salesforce Sales Cloud**: $25/user/month (Starter Suite) or $100/user/month (Pro).
-5. **Freshsales**: $15/user/month (Growth) or $39/user/month (Pro).`,
+1. **HubSpot Sales Hub**: Professional tier, inbound automation and CRM analytics.
+2. **Pipedrive**: Advanced plan, visual sales pipeline and activity tracking.
+3. **Zoho CRM**: Professional edition, multichannel management and custom workflows.
+4. **Salesforce Sales Cloud**: Starter Suite / Enterprise, lead scoring and pipeline management.
+5. **Freshsales**: Growth / Pro tier, built-in phone and contact management.`,
     createdAt: '2026-11-09T10:15:20+05:30',
     localDate: '2026-11-09',
     meta: {
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-lite',
       searches: [
         { query: 'HubSpot CRM pricing 2026', topic: 'general', afterDate: '2026-11-09', ms: 120 }
       ],
@@ -85,13 +85,13 @@ export async function seedEvalDb(db) {
     userId: EVAL_USER_ID,
     role: 'assistant',
     content: `For Postgres hosting and serverless deployments in November 2026:
-- **Supabase**: Pro tier is $25/month with included compute, storage, and Auth.
-- **Neon**: Serverless Postgres with branching; Launch plan is $19/month, Scale is $69/month.
-- **AWS Aurora Serverless v2**: Scalable ACUs for enterprise workloads.`,
+- **Supabase**: Pro tier with managed PostgreSQL, built-in Auth, database storage, and edge functions.
+- **Neon**: Serverless Postgres featuring database branching, compute autoscaling, and storage-compute separation.
+- **AWS Aurora Serverless v2**: Scalable ACUs for dynamic enterprise PostgreSQL workloads.`,
     createdAt: '2026-11-03T14:21:40+05:30',
     localDate: '2026-11-03',
     meta: {
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-lite',
       searches: [],
       sources: [
         { url: 'https://supabase.com/pricing', title: 'Supabase Pricing', domain: 'supabase.com', publishedDate: '2026-11-01', type: 'official' },

@@ -7,7 +7,7 @@ export function createHealthRouter({ db }) {
   router.get('/', (req, res) => {
     res.json({
       status: 'ok',
-      db: db.type,
+      db: db ? db.type : 'in-memory',
       models: {
         fast: config.llm.fastModel,
         deep: config.llm.deepModel

@@ -135,7 +135,7 @@ export class ToolLoop {
         }
 
         onEvent({
-          type: EventType.SEARCH_COMPLETED,
+          type: EventType.SEARCH_FINISHED,
           payload: { searchId, resultCount: searchRes.results?.length || 0, ms: sDuration }
         });
 
@@ -156,7 +156,7 @@ export class ToolLoop {
 
       if (allSources.length > 0) {
         onEvent({
-          type: EventType.SOURCES_FOUND,
+          type: EventType.SOURCES,
           payload: { sources: allSources }
         });
       }

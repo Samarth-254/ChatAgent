@@ -44,8 +44,9 @@ export async function* streamChat({ model, messages, tools = undefined, tool_cho
   const client = getLlmClient();
   let attempt = 0;
   let hasFallenBack = false;
+  let lastErr = null;
 
-  while (attempt < 3) {
+  while (attempt < 4) {
     attempt++;
     try {
       const payload = { model: targetModel, messages, stream: true };
@@ -81,6 +82,7 @@ export async function* streamChat({ model, messages, tools = undefined, tool_cho
       yield { type: 'finish_reason', finishReason: finish || 'stop' };
       return;
     } catch (err) {
+      lastErr = err;
       const is429 = err.status === 429 ||
         String(err.status) === '429' ||
         (err.message && (
@@ -95,11 +97,12 @@ export async function* streamChat({ model, messages, tools = undefined, tool_cho
         continue;
       }
       if ((is429 || (err.status >= 500 && err.status < 600)) && attempt < 4) {
-        const delay = is429 ? Math.max(4000 * attempt, getRetryDelay(err, attempt)) : getRetryDelay(err, attempt);
+        const delay = is429 ? Math.max(5000 * attempt, getRetryDelay(err, attempt)) : getRetryDelay(err, attempt);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
       throw err;
     }
   }
+  if (lastErr) throw lastErr;
 }

@@ -59,10 +59,15 @@ export function buildSystemPrompt({
 
     `=== RE-VERIFICATION PROTOCOL ===
 - When a <baseline> exists:
-  1. Restate in one concise opening line what was discussed and on what date (e.g. "On Tuesday, 3 November 2026...").
+  1. Restate in one concise opening line what was discussed and on what date (e.g. "On Tuesday, 3 November 2026..."). Include the weekday and date.
   2. Search for each entity mentioned in the baseline separately in parallel with after_date set to the baseline date.
   3. Organize your answer clearly into three sections:
-     - "Changed since <date>:" (List specific pricing, feature, or version changes with dates and citations)
+     - "Changed since <date>:"
+       * EVIDENCE RULE: You may ONLY list an item under "Changed since <date>" if:
+         (a) a source published AFTER the baseline date (tagged postBaseline: true) supports it, OR
+         (b) an official page shows a value that differs from the baseline value, in which case it MUST be worded: "differs from my earlier answer; I can't date the change".
+       * Results published BEFORE the baseline date (tagged postBaseline: false) are NEVER evidence of a change after it.
+       * If nothing qualifies under (a) or (b), the item MUST NOT be listed under "Changed", but under "No change found" or "Couldn't verify".
      - "No change found:" (List items checked where no evidence of change was found; explicitly note this means no evidence found in accessible sources, not absolute proof)
      - "Couldn't verify:" (Items where official or reliable recent data was inaccessible)
 - When asked if an earlier answer is still correct ("Is your answer still correct today?"):

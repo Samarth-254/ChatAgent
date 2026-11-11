@@ -13,6 +13,7 @@ import { createDb } from './infrastructure/storage/postgres/createDb.js';
 import { runMigrations } from './infrastructure/storage/postgres/migrationRunner.js';
 import { PostgresSessionRepository } from './infrastructure/storage/postgres/postgresSessionRepository.js';
 import { PostgresMessageRepository } from './infrastructure/storage/postgres/postgresMessageRepository.js';
+import { InMemorySessionRepository, InMemoryMessageRepository, seedDemoHistory } from './infrastructure/storage/inMemory/inMemoryRepositories.js';
 import { ChatTurnUseCase } from './application/chatTurnUseCase.js';
 
 import { clientAuthMiddleware } from './interfaces/http/middleware/auth.js';
@@ -61,11 +62,27 @@ if (config.nodeEnv === 'development') {
 app.use(express.json({ limit: '1mb' }));
 
 // Initialize Database & Repositories
-const db = createDb();
-await runMigrations(db);
+let db = null;
+let sessionRepository;
+let messageRepository;
 
-const sessionRepository = new PostgresSessionRepository(db);
-const messageRepository = new PostgresMessageRepository(db);
+if (config.databaseUrl) {
+  db = createDb();
+  await runMigrations(db);
+  sessionRepository = new PostgresSessionRepository(db);
+  messageRepository = new PostgresMessageRepository(db);
+} else {
+  console.warn('\n⚠️  ******************************************************************');
+  console.warn('⚠️  No DATABASE_URL: using in-memory memory, history is lost on restart.');
+  console.warn('⚠️  ******************************************************************\n');
+  sessionRepository = new InMemorySessionRepository();
+  messageRepository = new InMemoryMessageRepository(sessionRepository);
+
+  if (process.env.DEMO_SEED === '1') {
+    await seedDemoHistory(sessionRepository, messageRepository);
+  }
+}
+
 const chatTurnUseCase = new ChatTurnUseCase({
   sessionRepository,
   messageRepository,
