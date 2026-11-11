@@ -49,3 +49,28 @@ export function resolveRelativeDates(text, refDate = getNow(), timeZone = getTim
   return domainResolveRelativeDates(text, refDate, timeZone);
 }
 
+export function createClock({ fixedNow = null, userTz = null } = {}) {
+  const effectiveFixed = fixedNow ? new Date(fixedNow) : null;
+  return {
+    getNow() {
+      if (effectiveFixed && !isNaN(effectiveFixed.getTime())) return effectiveFixed;
+      return new Date();
+    },
+    getTimezone() {
+      return userTz || config.clock.userTz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    },
+    getTimezoneOffsetStr(date = this.getNow(), timeZone = this.getTimezone()) {
+      return getTimezoneOffsetStr(date, timeZone);
+    },
+    formatClockBlock(date = this.getNow(), timeZone = this.getTimezone()) {
+      return formatClockBlock(date, timeZone);
+    },
+    formatLocalDate(date, timeZone = this.getTimezone()) {
+      return formatLocalDate(date, timeZone);
+    },
+    resolveRelativeDates(text, refDate = this.getNow(), timeZone = this.getTimezone()) {
+      return resolveRelativeDates(text, refDate, timeZone);
+    }
+  };
+}
+

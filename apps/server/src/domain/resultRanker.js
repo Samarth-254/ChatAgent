@@ -53,7 +53,13 @@ export function processRawResults(results, query, afterDate = null) {
     });
   }
 
-  return processed.sort((a, b) => b.score - a.score);
+  return processed.sort((a, b) => {
+    // Official sources strictly take precedence over aggregators/listicles
+    const aIsOfficial = a.type === 'official' ? 1 : 0;
+    const bIsOfficial = b.type === 'official' ? 1 : 0;
+    if (aIsOfficial !== bIsOfficial) return bIsOfficial - aIsOfficial;
+    return b.score - a.score;
+  });
 }
 
 export function classifyBaselineChange({ baselineValue, liveValue, sources = [] }) {
@@ -73,15 +79,15 @@ export function classifyBaselineChange({ baselineValue, liveValue, sources = [] 
   return 'no change found';
 }
 
-export function formatResultsForModel(results, afterDate = null, maxResults = 5) {
+export function formatResultsForModel(results, afterDate = null, maxResults = 4) {
   if (!results || results.length === 0) return 'No search results found.';
   return results.slice(0, maxResults).map((r, i) => {
     const pub = r.published_date || 'date unknown';
     const baselineTag = r.postBaseline === true
       ? ' | postBaseline: true (published after baseline)'
       : (r.postBaseline === false ? ` | postBaseline: false (published ${pub} <= baseline ${afterDate})` : ' | postBaseline: unknown');
-    // Trim content to ~1000 characters for high speed and token efficiency
-    const trimmed = r.content.length > 1000 ? r.content.slice(0, 980) + '...' : r.content;
+    // Trim content to ~600 characters for high speed and token efficiency
+    const trimmed = r.content.length > 600 ? r.content.slice(0, 580) + '...' : r.content;
     return `[${i + 1}] ${r.title} | ${r.domain} | ${r.type} | published: ${pub}${baselineTag}\n${trimmed}`;
   }).join('\n\n');
 }

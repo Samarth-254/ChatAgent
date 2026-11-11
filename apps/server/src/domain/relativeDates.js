@@ -54,27 +54,41 @@ export function resolveRelativeDates(text, refDate = new Date(), timeZone = 'UTC
       let daysBack = (currentWeekday - wd.index + 7) % 7;
       if (daysBack === 0) daysBack = 7; // strictly past weekday, not today
 
-      const mostRecent = new Date(refDate);
-      mostRecent.setDate(refDate.getDate() - daysBack);
-      const mostRecentIso = formatLocalDateParts(mostRecent, timeZone);
+      // 1. Most recent occurrence strictly before today
+      const occ1 = new Date(refDate);
+      occ1.setDate(refDate.getDate() - daysBack);
+      const occ1Iso = formatLocalDateParts(occ1, timeZone);
 
-      const prevWeek = new Date(refDate);
-      prevWeek.setDate(refDate.getDate() - (daysBack + 7));
-      const prevWeekIso = formatLocalDateParts(prevWeek, timeZone);
+      // 2. The occurrence 7 days before that
+      const occ2 = new Date(refDate);
+      occ2.setDate(refDate.getDate() - (daysBack + 7));
+      const occ2Iso = formatLocalDateParts(occ2, timeZone);
 
-      let candidates = [];
+      // 3. Occurrence in previous calendar week if different
+      const startOfCurrentWeek = new Date(refDate);
+      startOfCurrentWeek.setDate(refDate.getDate() - currentWeekday);
+      const prevCalWeekOcc = new Date(startOfCurrentWeek);
+      prevCalWeekOcc.setDate(startOfCurrentWeek.getDate() - 7 + wd.index);
+      const prevCalWeekOccIso = formatLocalDateParts(prevCalWeekOcc, timeZone);
+
       let primaryCandidate = '';
       const raw = isLast ? `last ${wd.name}` : wd.name;
 
       if (isLast) {
-        // "last Tuesday" on Wed 11 Nov -> primary is Tuesday of previous week (2026-11-03)
-        primaryCandidate = prevWeekIso;
-        candidates = [prevWeekIso, mostRecentIso];
+        if (currentWeekday === wd.index) {
+          // If today IS that weekday (e.g. today is Tuesday), "last Tuesday" must include 7 days ago as primary
+          primaryCandidate = occ1Iso;
+        } else {
+          primaryCandidate = prevCalWeekOccIso;
+        }
       } else {
-        // "Monday" on Wed 11 Nov -> primary is most recent past Monday (2026-11-09)
-        primaryCandidate = mostRecentIso;
-        candidates = [mostRecentIso, prevWeekIso];
+        primaryCandidate = occ1Iso;
       }
+
+      const rawCandidates = isLast
+        ? [primaryCandidate, occ1Iso, occ2Iso, prevCalWeekOccIso]
+        : [occ1Iso, occ2Iso, prevCalWeekOccIso];
+      const candidates = [...new Set(rawCandidates)];
 
       resolvedDates.push({
         raw,

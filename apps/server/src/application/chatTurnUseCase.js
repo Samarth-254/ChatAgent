@@ -32,7 +32,7 @@ export class ChatTurnUseCase {
     this.clockPort = clockPort;
     this.fastModel = fastModel;
     this.deepModel = deepModel;
-    this.toolLoop = new ToolLoop({ llmPort, searchPort });
+    this.toolLoop = new ToolLoop({ llmPort, searchPort, fastModel });
   }
 
   async execute({ userId, sessionId, message, onEvent = () => {}, signal }) {
@@ -88,12 +88,13 @@ export class ChatTurnUseCase {
           d.afterDate = baselineResult.chosenDate;
           d.iso = baselineResult.chosenDate;
         });
-        effectiveDateNote = `[date note: ${baselineResult.reason}; "since" = after ${baselineResult.chosenDate}]`;
+        const candidateList = [...new Set(resolvedDates.flatMap(d => d.candidates || [d.iso]))];
+        effectiveDateNote = `[date note: candidates = [${candidateList.join(', ')}]; recall picked ${baselineResult.chosenDate} (${baselineResult.reason}); "since" = after ${baselineResult.chosenDate}]`;
       }
     } else if (/\b(changed since|pricing changed|any pricing changed|since then)\b/i.test(message)) {
-      const candidateList = resolvedDates.flatMap(d => d.candidates || [d.iso]);
+      const candidateList = [...new Set(resolvedDates.flatMap(d => d.candidates || [d.iso]))];
       if (candidateList.length > 0) {
-        effectiveDateNote = `[date note: Evaluated candidate dates [${candidateList.join(', ')}], but found no stored conversation matching this topic. State that you have no record of discussing this topic on that date, ask the user to clarify, and run a fresh general search on current pricing.]`;
+        effectiveDateNote = `[date note: candidates = [${candidateList.join(', ')}]; evaluated candidates, but found no matching stored conversation. State that you have no record of discussing this topic on that date, ask the user to clarify, and run a fresh general search on current pricing.]`;
       }
     }
 

@@ -2,7 +2,7 @@ export const WEB_SEARCH_TOOL = {
   type: 'function',
   function: {
     name: 'web_search',
-    description: 'Search the live web via Tavily. Issue multiple narrow searches in parallel (one per tool/entity). Use after_date (YYYY-MM-DD) when verifying updates since a date, and specify official domains when checking pricing or release notes.',
+    description: 'Search the live web via Tavily. Issue multiple narrow searches in parallel (one per tool/entity). Use after_date (YYYY-MM-DD) when verifying updates since a date, and specify official domains in domains parameter when entity is known (e.g. ["hubspot.com"], ["salesforce.com"], ["supabase.com"], ["neon.tech"], ["render.com"]). If a domain-restricted search has no results, an unrestricted fallback runs automatically.',
     parameters: {
       type: 'object',
       properties: {
@@ -26,7 +26,7 @@ export const WEB_SEARCH_TOOL = {
         domains: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Optional list of domains to restrict results (e.g. ["hubspot.com", "salesforce.com"]).'
+          description: 'Optional list of official domains to prioritize (e.g. ["hubspot.com"], ["neon.tech"]). Always supply official domains when the target vendor/product is known.'
         }
       },
       required: ['query']
@@ -55,7 +55,7 @@ export function buildSystemPrompt({
 - Answer directly without searching when answering stable facts, definitions, math, or conversational chat.
 - Search when information is time-sensitive, involves named products/companies/people, prices, versions, or when checking for recent updates.
 - Parallel entity search: When comparing or verifying multiple items (e.g., shortlisted tools), issue individual narrow searches simultaneously for each item.
-- Use after_date (YYYY-MM-DD) to focus on changes since a known reference date. Prioritize official pages (/pricing, /changelog, docs).`,
+- Use after_date (YYYY-MM-DD) to focus on changes since a known reference date. Always pass official vendor domains in the domains parameter when the entity is known (e.g. ['hubspot.com'], ['supabase.com'], ['render.com']). If a domain-restricted search yields nothing, the system automatically falls back to an unrestricted search.`,
 
     `=== RE-VERIFICATION PROTOCOL ===
 - When a <baseline> exists:

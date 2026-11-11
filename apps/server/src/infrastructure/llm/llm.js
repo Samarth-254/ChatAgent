@@ -20,12 +20,18 @@ function safeParseJson(str) {
 }
 
 function finalizeToolCalls(accumulator) {
-  return Object.values(accumulator).map(tc => ({
-    id: tc.id || `call_${Math.random().toString(36).slice(2, 9)}`,
-    name: tc.name,
-    rawArguments: tc.rawArgs,
-    arguments: safeParseJson(tc.rawArgs)
-  }));
+  return Object.values(accumulator).map(tc => {
+    const item = {
+      id: tc.id || `call_${Math.random().toString(36).slice(2, 9)}`,
+      name: tc.name,
+      rawArguments: tc.rawArgs,
+      arguments: safeParseJson(tc.rawArgs)
+    };
+    if (tc.extra_content) {
+      item.extra_content = tc.extra_content;
+    }
+    return item;
+  });
 }
 
 function getRetryDelay(err, attempt, baseMs = 1500) {
@@ -36,7 +42,14 @@ function getRetryDelay(err, attempt, baseMs = 1500) {
   return baseMs * Math.pow(2, attempt - 1);
 }
 
-export async function* streamChat({ model, messages, tools = undefined, tool_choice = undefined, signal = undefined }) {
+export async function* streamChat({
+  model,
+  messages,
+  tools = undefined,
+  tool_choice = undefined,
+  signal = undefined,
+  reasoningEffort = config.llm.reasoningEffort
+}) {
   const fastModel = config.llm.fastModel;
   const deepModel = config.llm.deepModel;
   let targetModel = model || deepModel;
@@ -50,6 +63,9 @@ export async function* streamChat({ model, messages, tools = undefined, tool_cho
     attempt++;
     try {
       const payload = { model: targetModel, messages, stream: true };
+      if (reasoningEffort) {
+        payload.reasoning_effort = reasoningEffort;
+      }
       if (tools?.length) {
         payload.tools = tools;
         if (tool_choice) payload.tool_choice = tool_choice;
@@ -69,8 +85,9 @@ export async function* streamChat({ model, messages, tools = undefined, tool_cho
           for (let i = 0; i < delta.tool_calls.length; i++) {
             const tc = delta.tool_calls[i];
             const idx = tc.index !== undefined ? tc.index : (tc.id || i);
-            if (!toolMap[idx]) toolMap[idx] = { id: tc.id || '', name: tc.function?.name || '', rawArgs: '' };
+            if (!toolMap[idx]) toolMap[idx] = { id: tc.id || '', name: tc.function?.name || '', rawArgs: '', extra_content: tc.extra_content };
             if (tc.id) toolMap[idx].id = tc.id;
+            if (tc.extra_content) toolMap[idx].extra_content = tc.extra_content;
             if (tc.function?.name) toolMap[idx].name = tc.function.name;
             if (tc.function?.arguments) toolMap[idx].rawArgs += tc.function.arguments;
           }

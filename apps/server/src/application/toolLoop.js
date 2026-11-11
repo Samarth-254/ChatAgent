@@ -6,13 +6,15 @@ export class ToolLoop {
    * @param {Object} deps
    * @param {import('./ports/index.js').LlmPort} deps.llmPort
    * @param {import('./ports/index.js').SearchPort} deps.searchPort
+   * @param {string} [deps.fastModel]
    */
-  constructor({ llmPort, searchPort }) {
+  constructor({ llmPort, searchPort, fastModel = null }) {
     if (!llmPort || !searchPort) {
       throw new Error('ToolLoop requires llmPort and searchPort');
     }
     this.llmPort = llmPort;
     this.searchPort = searchPort;
+    this.fastModel = fastModel;
   }
 
   async run({
@@ -42,11 +44,14 @@ export class ToolLoop {
       const forceThisRound = isFirstRound && route.forceSearch;
       const toolChoice = forceThisRound ? { type: 'function', function: { name: 'web_search' } } : 'auto';
 
+      // FAST_MODEL for initial tool selection, activeModel (DEEP_MODEL) for synthesis
+      const modelForRound = (forceThisRound && this.fastModel) ? this.fastModel : activeModel;
+
       let currentRoundCalls = null;
       const llmStart = Date.now();
 
       const stream = this.llmPort.streamChat({
-        model: activeModel,
+        model: modelForRound,
         messages,
         tools: [WEB_SEARCH_TOOL],
         tool_choice: toolChoice,
@@ -84,11 +89,17 @@ export class ToolLoop {
       messages.push({
         role: 'assistant',
         content: null,
-        tool_calls: currentRoundCalls.map(tc => ({
-          id: tc.id,
-          type: 'function',
-          function: { name: tc.name, arguments: tc.rawArguments || JSON.stringify(tc.arguments) }
-        }))
+        tool_calls: currentRoundCalls.map(tc => {
+          const callObj = {
+            id: tc.id,
+            type: 'function',
+            function: { name: tc.name, arguments: tc.rawArguments || JSON.stringify(tc.arguments) }
+          };
+          if (tc.extra_content) {
+            callObj.extra_content = tc.extra_content;
+          }
+          return callObj;
+        })
       });
 
       // Execute tool calls concurrently in parallel
@@ -142,8 +153,7 @@ export class ToolLoop {
         return {
           role: 'tool',
           tool_call_id: tc.id,
-          name: tc.name,
-          content: searchRes.formattedText
+          content: String(searchRes.formattedText || '')
         };
       });
 

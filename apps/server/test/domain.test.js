@@ -46,14 +46,46 @@ test('Domain: canonicalizeUrl removes tracking parameters and normalizes', () =>
 test('Domain: categorizeDomain boosts official, changelog, and pricing pages', () => {
   const official = categorizeDomain('https://supabase.com/pricing', 'supabase');
   assert.equal(official.type, 'official');
-  assert.equal(official.boost, 2.0);
+  assert.ok(official.boost >= 2.0);
+
+  const aggregator = categorizeDomain('https://top10.com/best-crm-software', 'crm');
+  assert.equal(aggregator.type, 'aggregator');
+  assert.ok(aggregator.boost < 1.0);
 
   const news = categorizeDomain('https://techcrunch.com/article', 'startup funding');
   assert.equal(news.type, 'news');
   assert.equal(news.boost, 1.5);
 });
 
-test('Domain: resultRanker trims content to ~1000 chars and limits to 5 results', () => {
+test('Domain: resultRanker sorts official-domain above listicles/aggregators', () => {
+  const raw = [
+    {
+      url: 'https://top10.com/best-crm-tools',
+      title: 'Top 10 CRM Tools 2026',
+      content: 'HubSpot and Salesforce comparison listicle',
+      score: 0.99
+    },
+    {
+      url: 'https://hubspot.com/pricing/crm',
+      title: 'Official HubSpot CRM Pricing & Plans',
+      content: 'Official HubSpot Sales Hub pricing starting at $15/seat',
+      score: 0.70
+    },
+    {
+      url: 'https://selecthub.com/crm-software-pricing',
+      title: 'SelectHub Pricing Guide',
+      content: 'Aggregator pricing estimates',
+      score: 0.95
+    }
+  ];
+
+  const processed = processRawResults(raw, 'hubspot');
+  assert.equal(processed[0].domain, 'hubspot.com', 'Official domain must be ranked #1');
+  assert.equal(processed[0].type, 'official');
+  assert.ok(processed[1].type === 'aggregator' || processed[2].type === 'aggregator');
+});
+
+test('Domain: resultRanker trims content to ~600 chars and limits results', () => {
   const longContent = 'A'.repeat(1500);
   const raw = [
     { url: 'https://test1.com', title: 'Test 1', content: longContent, published_date: '2026-11-01' },
@@ -62,9 +94,9 @@ test('Domain: resultRanker trims content to ~1000 chars and limits to 5 results'
   const processed = processRawResults(raw, 'test');
   assert.equal(processed.length, 2);
 
-  const formatted = formatResultsForModel(processed, null, 5);
+  const formatted = formatResultsForModel(processed, null, 4);
   assert.ok(formatted.includes('Test 1'));
-  assert.ok(!formatted.includes('A'.repeat(1200)), 'Content must be trimmed');
+  assert.ok(!formatted.includes('A'.repeat(800)), 'Content must be trimmed to ~600 chars');
 });
 
 test('Domain: classifyBaselineChange enforces evidence rule for changes', () => {

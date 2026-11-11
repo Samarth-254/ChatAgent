@@ -96,6 +96,16 @@ export async function search(query, options = {}) {
   try {
     let raw = await fetchTavilyWithRetry(payload, apiKey);
 
+    // Fallback to unrestricted query only if restricted returns nothing useful
+    if ((!raw || raw.length === 0) && domains.length > 0) {
+      const unrestrictedPayload = { ...payload };
+      delete unrestrictedPayload.include_domains;
+      const unrestrictedRaw = await fetchTavilyWithRetry(unrestrictedPayload, apiKey);
+      if (unrestrictedRaw && unrestrictedRaw.length > 0) {
+        raw = unrestrictedRaw;
+      }
+    }
+
     // If first round returned too little (< 2 results) and search was basic, retry with advanced
     if ((!raw || raw.length < 2) && search_depth === 'basic') {
       payload.search_depth = 'advanced';
@@ -109,7 +119,7 @@ export async function search(query, options = {}) {
     const res = {
       query: qStr,
       results: proc,
-      formattedText: formatResultsForModel(proc, after_date, 5),
+      formattedText: formatResultsForModel(proc, after_date, 4),
       sources: proc.map(p => ({
         url: p.url,
         title: p.title,

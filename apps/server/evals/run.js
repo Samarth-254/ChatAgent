@@ -24,6 +24,7 @@ process.env.USER_TZ = process.env.USER_TZ || 'Asia/Kolkata';
 
 // Check if plumbing (mock) mode requested via flag
 const isPlumbing = process.argv.includes('--mock') || process.argv.includes('--plumbing');
+const shouldResume = process.argv.includes('--resume');
 
 function percentile(arr, p) {
   if (arr.length === 0) return 0;
@@ -50,6 +51,11 @@ async function runEvals() {
   console.log('   Storage: Real Neon PostgreSQL');
   console.log('========================================================================================\n');
 
+  const evalClock = clock.createClock({
+    fixedNow: '2026-11-10T09:00:00+05:30',
+    userTz: process.env.USER_TZ || 'Asia/Kolkata'
+  });
+
   const db = createDb();
   const { sessionRepo, messageRepo } = await seedEvalDb(db);
 
@@ -58,13 +64,33 @@ async function runEvals() {
     messageRepository: messageRepo,
     llmPort: isPlumbing ? { streamChat: fakeStreamChat } : { streamChat },
     searchPort: isPlumbing ? { search: fakeSearch } : { search },
-    clockPort: clock,
+    clockPort: evalClock,
     fastModel: config.llm.fastModel,
     deepModel: config.llm.deepModel
   });
 
   const casesPath = path.join(__dirname, 'cases.json');
   const cases = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
+
+  const resultsFileName = isPlumbing ? 'results-plumbing.json' : 'results-real.json';
+  const resultsPath = path.join(rootDir, 'evals', resultsFileName);
+
+  const existingPassedMap = new Map();
+  if (shouldResume && fs.existsSync(resultsPath)) {
+    try {
+      const prevData = JSON.parse(fs.readFileSync(resultsPath, 'utf8'));
+      if (Array.isArray(prevData.results)) {
+        for (const r of prevData.results) {
+          if (r.passed) {
+            existingPassedMap.set(r.id, r);
+          }
+        }
+        console.log(`[Resume Mode] Loaded ${existingPassedMap.size} previously passed cases from evals/${resultsFileName}\n`);
+      }
+    } catch (e) {
+      console.warn(`[Resume Mode] Could not read existing results: ${e.message}`);
+    }
+  }
 
   const results = [];
   const ttfts = [];
@@ -76,6 +102,16 @@ async function runEvals() {
   try {
     for (let i = 0; i < cases.length; i++) {
       const c = cases[i];
+
+      if (existingPassedMap.has(c.id)) {
+        const prev = existingPassedMap.get(c.id);
+        results.push(prev);
+        if (typeof prev.ttftMs === 'number') ttfts.push(prev.ttftMs);
+        if (typeof prev.totalMs === 'number') totalTimes.push(prev.totalMs);
+        if (typeof prev.searches === 'number') searchCounts.push(prev.searches);
+        console.log(`[${String(i + 1).padStart(2, '0')}/${cases.length}] ${c.id.padEnd(36)} \x1b[32mPASS\x1b[0m (${prev.ttftMs}ms TTFT, ${prev.totalMs}ms tot, ${prev.searches} srch) [RESUMED]`);
+        continue;
+      }
 
       if (quotaExhausted) {
         results.push({
@@ -284,8 +320,6 @@ async function runEvals() {
         results
       };
 
-  const resultsFileName = isPlumbing ? 'results-plumbing.json' : 'results-real.json';
-  const resultsPath = path.join(rootDir, 'evals', resultsFileName);
   const evalsDir = path.dirname(resultsPath);
   if (!fs.existsSync(evalsDir)) fs.mkdirSync(evalsDir, { recursive: true });
   fs.writeFileSync(resultsPath, JSON.stringify(outputPayload, null, 2));
