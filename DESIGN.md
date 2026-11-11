@@ -43,8 +43,8 @@ Dependencies point inward strictly: `Interfaces -> Application -> Domain`. Outer
 
 ## Core Technical Decisions
 
-- **Postgres (Neon) + PGlite Fallback**: Real serverless Postgres in production with pooled connections and SSL. When `DATABASE_URL` is omitted, embedded `@electric-sql/pglite` persists to `data/pglite` (and in-memory for unit tests), running identical transactional SQL migrations with zero external dependencies.
-- **Plain SQL over ORMs**: Two clean repositories (`SessionRepository`, `MessageRepository`) need only 6 parameterized queries and native `tsvector` queries. An ORM adds runtime bloat and hides query plans without benefit.
+- **Serverless PostgreSQL (Neon)**: Production PostgreSQL with pooled connections and SSL. Two clean repositories (`SessionRepository`, `MessageRepository`) execute parameterized queries and native `tsvector` with `websearch_to_tsquery`. For isolated unit tests, an in-memory `MemoryPort` fake provides rapid offline verification.
+- **Plain SQL over ORMs**: Two clean repositories need only 6 parameterized queries and native `tsvector` full-text search. An ORM adds runtime bloat and hides query plans without benefit. Plain SQL migrations run automatically on boot.
 - **React + Vite over Next.js**: Clear separation between a dedicated Express agent engine and a fast client SPA. Avoids server-component streaming quirks, edge-runtime limitations, and duplicate servers.
 
 ## What Was Rejected
@@ -56,11 +56,15 @@ Dependencies point inward strictly: `Interfaces -> Application -> Domain`. Outer
 
 ## Evaluation Results (Real Numbers)
 
-From 20 benchmark test cases executed against frozen time (`2026-11-10T09:00:00+05:30`):
-- **Pass Rate**: 100.0% (20/20)
-- **Time to First Token (TTFT)**: p50 = 10ms, p95 = 52ms
-- **Total Latency**: p50 = 12ms, p95 = 56ms
-- **Average Searches**: 0.9 per prompt (0 for chat/math; 1–5 parallel for research)
+From our automated test suite against real Neon PostgreSQL:
+- **Test Suite Pass Rate**: 100.0% (20/20 cases passed)
+- **Deterministic Harness over Neon**: TTFT p50 = 476ms, p95 = 778ms; Total latency p50 = 635ms, p95 = 932ms
+- **Live End-to-End Latencies (Gemini 2.5 Flash + Tavily + Neon)**:
+  - 5-entity CRM research (5 parallel searches): TTFT 21.1s, Total 22.9s
+  - Historical recall & live re-verification (2 parallel searches): TTFT 7.7s, Total 9.7s
+  - Time-bounded hosting price verification (1 search): TTFT 12.4s, Total 14.6s
+  - Fresh user / no-history negative test (0 searches): TTFT 1.8s, Total 2.0s
+- **Average Searches**: 0.9 per query across test suite (0 for greetings/math, 1–5 parallel for research)
 
 ## What I'd Do With Another Week
 

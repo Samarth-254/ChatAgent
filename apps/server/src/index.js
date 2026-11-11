@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -6,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { config } from './config/index.js';
 import { createDb } from './infrastructure/storage/postgres/createDb.js';
 import { runMigrations } from './infrastructure/storage/postgres/migrationRunner.js';
 import { PostgresSessionRepository } from './infrastructure/storage/postgres/postgresSessionRepository.js';
@@ -24,20 +24,37 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../../../');
 const webDistDir = path.join(rootDir, 'apps/web/dist');
 
-// Fail fast on missing keys in live production mode
-if (process.env.MOCK_LLM !== '1' && process.env.NODE_ENV !== 'test' && !process.env.LLM_API_KEY) {
-  console.error('\n❌ ERROR: Missing required environment variable: LLM_API_KEY');
-  console.error('Please configure LLM_API_KEY in your .env file or environment.\n');
-  process.exit(1);
+// Fail fast on missing keys in live runtime
+if (config.nodeEnv !== 'test') {
+  if (!config.databaseUrl) {
+    console.error('\n❌ ERROR: Missing required environment variable: DATABASE_URL');
+    console.error('Please configure a valid Neon PostgreSQL connection string in DATABASE_URL.\n');
+    process.exit(1);
+  }
+  if (!config.llm.apiKey) {
+    console.error('\n❌ ERROR: Missing required environment variable: LLM_API_KEY');
+    console.error('Please configure LLM_API_KEY in your .env file or environment.\n');
+    process.exit(1);
+  }
+  if (!config.search.apiKey) {
+    console.error('\n❌ ERROR: Missing required environment variable: TAVILY_API_KEY');
+    console.error('Please configure TAVILY_API_KEY in your .env file or environment.\n');
+    process.exit(1);
+  }
 }
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = config.port;
 
 app.use(helmet({
-  contentSecurityPolicy: false // Allow inline styles and Vite dev assets
+  contentSecurityPolicy: false
 }));
-app.use(cors());
+
+// CORS enabled only in dev for standalone testing; production is same-origin
+if (config.nodeEnv === 'development') {
+  app.use(cors());
+}
+
 app.use(express.json({ limit: '1mb' }));
 
 // Initialize Database & Repositories
@@ -60,7 +77,7 @@ apiRouter.use('/memory', createMemoryRouter({ messageRepository }));
 
 app.use('/api/v1', apiRouter);
 
-// Production static file serving for web frontend
+// Production static file serving for web frontend + SPA fallback
 if (fs.existsSync(webDistDir)) {
   app.use(express.static(webDistDir, { maxAge: '1h' }));
   app.get('*', (req, res, next) => {
@@ -73,10 +90,10 @@ app.use(errorHandler);
 
 const server = app.listen(port, () => {
   console.log(`\n🚀 ChatAgent server listening at http://localhost:${port}`);
-  console.log(`   Database:    ${db.type.toUpperCase()}`);
-  console.log(`   Fast Model:  ${process.env.FAST_MODEL || 'gemini-2.5-flash'}`);
-  console.log(`   Deep Model:  ${process.env.DEEP_MODEL || 'gemini-2.5-flash'}`);
-  console.log(`   User TZ:     ${process.env.USER_TZ || 'system'}\n`);
+  console.log(`   Database:    NEON (${db.type.toUpperCase()})`);
+  console.log(`   Fast Model:  ${config.llm.fastModel}`);
+  console.log(`   Deep Model:  ${config.llm.deepModel}`);
+  console.log(`   User TZ:     ${config.clock.userTz || 'system'}\n`);
 });
 
 const shutdown = async () => {
@@ -91,4 +108,3 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 export { app, server, db };
-

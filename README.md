@@ -23,8 +23,7 @@ ChatAgent/
 │   └── web/              # React 18 + Vite SPA (Claude aesthetic, CSS variables)
 ├── packages/
 │   └── shared/           # Shared SSE event contract, types, and constants
-├── scripts/              # Boundary checking and maintenance scripts
-└── .github/workflows/    # Continuous integration pipeline
+└── scripts/              # Boundary checking and maintenance scripts
 ```
 
 ## Available Scripts
@@ -58,11 +57,23 @@ ChatAgent/
 
 ## Deployment
 
-Deploy as a unified web service on **Render**, **Railway**, or any Docker-compatible host:
-1. **Database**: Create a serverless PostgreSQL database on **Neon** and copy the connection string into `DATABASE_URL`. (Or omit `DATABASE_URL` to run with zero-config embedded PGlite).
-2. **Web Service**: Deploy using the included `Dockerfile` or `render.yaml`.
-3. Set environment variables (`LLM_API_KEY`, `TAVILY_API_KEY`, `DATABASE_URL`).
-4. Health check endpoint: `/api/v1/health`.
+Deploy as a single unified service on **Render** backed by **Neon**:
+
+1. **Database**: Create a project in [Neon](https://neon.tech) and copy the pooled connection string into `DATABASE_URL` (requires `sslmode=require`).
+2. **Render Web Service**: Create a new Web Service pointing to your repository:
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm start`
+   - **Health Check Path**: `/api/v1/health`
+3. **Environment Variables**: Configure the following in the Render dashboard:
+   - `LLM_API_KEY` (Required: OpenAI-compatible or Google AI Studio key)
+   - `LLM_BASE_URL` (Default: `https://generativelanguage.googleapis.com/v1beta/openai/`)
+   - `FAST_MODEL` (Default: `gemini-2.5-flash`)
+   - `DEEP_MODEL` (Default: `gemini-2.5-flash`)
+   - `TAVILY_API_KEY` (Required: Tavily search key)
+   - `DATABASE_URL` (Required: Neon pooled connection string)
+   - `USER_TZ` (e.g. `Asia/Kolkata` or `America/New_York`)
+4. **Boot**: Schema migrations run automatically on boot inside database transactions.
+*(Note: Render free tier spins down on idle; allow ~30s on cold start).*
 
 ## Evaluation Benchmarks
 

@@ -1,17 +1,11 @@
 import readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
-import dotenv from 'dotenv';
-dotenv.config();
+import { EventType } from '@chatagent/shared';
 
 import { createDb } from '../../infrastructure/storage/postgres/createDb.js';
 import { runMigrations } from '../../infrastructure/storage/postgres/migrationRunner.js';
 import { PostgresSessionRepository } from '../../infrastructure/storage/postgres/postgresSessionRepository.js';
 import { PostgresMessageRepository } from '../../infrastructure/storage/postgres/postgresMessageRepository.js';
-import { Clock } from '../../infrastructure/clock/clock.js';
-import { TavilySearchClient } from '../../infrastructure/search/search.js';
-import { OpenAiLlmClient } from '../../infrastructure/llm/llm.js';
-import { Router } from '../../application/router.js';
-import { SystemPromptBuilder } from '../../application/prompts.js';
 import { ChatTurnUseCase } from '../../application/chatTurnUseCase.js';
 
 async function main() {
@@ -20,29 +14,17 @@ async function main() {
   console.log('   Type your message or /exit to quit');
   console.log('===========================================\n');
 
-  const db = await createDb();
+  const db = createDb();
   await runMigrations(db);
 
-  const sessionRepo = new PostgresSessionRepository(db);
-  const messageRepo = new PostgresMessageRepository(db);
-  const clock = new Clock();
-  const searchClient = new TavilySearchClient();
-  const llmClient = new OpenAiLlmClient();
-  const router = new Router();
-  const promptBuilder = new SystemPromptBuilder();
-
-  const useCase = new ChatTurnUseCase({
-    sessionRepo,
-    messageRepo,
-    clock,
-    searchClient,
-    llmClient,
-    router,
-    promptBuilder,
-  });
+  const sessionRepository = new PostgresSessionRepository(db);
+  const messageRepository = new PostgresMessageRepository(db);
+  const useCase = new ChatTurnUseCase({ sessionRepository, messageRepository });
 
   const userId = randomUUID();
-  let sessionId = randomUUID();
+  await sessionRepository.ensureUser(userId);
+  const sessionId = randomUUID();
+  await sessionRepository.createSession(sessionId, userId, 'Terminal Session');
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -65,19 +47,18 @@ async function main() {
       process.stdout.write('\nAgent > ');
 
       try {
-        const stream = useCase.execute({
+        await useCase.execute({
           userId,
           sessionId,
           message: trimmed,
-        });
-
-        for await (const event of stream) {
-          if (event.event === 'chunk' && event.data?.delta) {
-            process.stdout.write(event.data.delta);
-          } else if (event.event === 'status' && event.data?.step === 'searching') {
-            process.stdout.write(`\n[searching: ${event.data.query || 'web'}...]\nAgent > `);
+          onEvent: (event) => {
+            if (event.type === EventType.TOKEN && event.payload?.text) {
+              process.stdout.write(event.payload.text);
+            } else if (event.type === EventType.SEARCH_STARTED && event.payload?.query) {
+              process.stdout.write(`\n[searching: ${event.payload.query}...]\nAgent > `);
+            }
           }
-        }
+        });
         console.log('');
       } catch (err) {
         console.error('\nError:', err.message);

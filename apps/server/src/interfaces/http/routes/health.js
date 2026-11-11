@@ -1,4 +1,5 @@
 import express from 'express';
+import { config } from '../../../config/index.js';
 
 export function createHealthRouter({ db }) {
   const router = express.Router();
@@ -8,8 +9,8 @@ export function createHealthRouter({ db }) {
       status: 'ok',
       db: db.type,
       models: {
-        fast: process.env.FAST_MODEL || 'gemini-2.5-flash',
-        deep: process.env.DEEP_MODEL || 'gemini-2.5-flash'
+        fast: config.llm.fastModel,
+        deep: config.llm.deepModel
       },
       version: '1.0.0'
     });

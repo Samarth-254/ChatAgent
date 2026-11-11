@@ -1,15 +1,16 @@
 import * as chrono from 'chrono-node';
+import { config } from '../../config/index.js';
 
 export function getNow() {
-  if (process.env.FIXED_NOW) {
-    const fixed = new Date(process.env.FIXED_NOW);
+  if (config.clock.fixedNow) {
+    const fixed = new Date(config.clock.fixedNow);
     if (!isNaN(fixed.getTime())) return fixed;
   }
   return new Date();
 }
 
 export function getTimezone() {
-  return process.env.USER_TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  return config.clock.userTz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
 
 export function getTimezoneOffsetStr(date = getNow(), timeZone = getTimezone()) {

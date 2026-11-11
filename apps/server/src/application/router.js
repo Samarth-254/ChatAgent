@@ -1,3 +1,5 @@
+import { config } from '../config/index.js';
+
 export function routeQuery({
   userMessage,
   _resolvedDates = [],
@@ -6,8 +8,8 @@ export function routeQuery({
 }) {
   const text = (userMessage || '').trim();
   const lower = text.toLowerCase();
-  const fastModel = process.env.FAST_MODEL || 'gemini-2.5-flash';
-  const deepModel = process.env.DEEP_MODEL || 'gemini-2.5-flash';
+  const fastModel = config.llm.fastModel;
+  const deepModel = config.llm.deepModel;
 
   const isGreeting = /^(hi|hello|hey|good\s+(morning|afternoon|evening)|howdy|greetings|who are you|what can you do)[\s!.,?]*$/i.test(lower);
   if (isGreeting) {

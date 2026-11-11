@@ -5,8 +5,20 @@ import { PostgresMessageRepository } from '../src/infrastructure/storage/postgre
 
 export const EVAL_USER_ID = '00000000-0000-0000-0000-000000000001';
 
+export async function cleanEvalDb(db) {
+  try {
+    await db.query('DELETE FROM messages WHERE user_id = $1', [EVAL_USER_ID]);
+    await db.query('DELETE FROM sessions WHERE user_id = $1', [EVAL_USER_ID]);
+    await db.query('DELETE FROM users WHERE id = $1', [EVAL_USER_ID]);
+  } catch {
+    // If tables don't exist yet, ignore
+  }
+}
+
 export async function seedEvalDb(db) {
   await runMigrations(db);
+  await cleanEvalDb(db);
+
   const sessionRepo = new PostgresSessionRepository(db);
   const messageRepo = new PostgresMessageRepository(db);
 

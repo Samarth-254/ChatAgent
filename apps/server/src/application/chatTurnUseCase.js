@@ -7,9 +7,16 @@ import { streamChat } from '../infrastructure/llm/llm.js';
 import { search } from '../infrastructure/search/search.js';
 
 export class ChatTurnUseCase {
-  constructor({ sessionRepository, messageRepository }) {
+  constructor({
+    sessionRepository,
+    messageRepository,
+    llmStream = streamChat,
+    searchFn = search
+  }) {
     this.sessionRepo = sessionRepository;
     this.messageRepo = messageRepository;
+    this.llmStream = llmStream;
+    this.searchFn = searchFn;
   }
 
   async execute({ userId, sessionId, message, onEvent, signal }) {
@@ -101,7 +108,7 @@ export class ChatTurnUseCase {
       const toolChoice = forceThisRound ? { type: 'function', function: { name: 'web_search' } } : 'auto';
 
       let currentRoundCalls = null;
-      const stream = streamChat({
+      const stream = this.llmStream({
         model: currentModel,
         messages,
         tools: [WEB_SEARCH_TOOL],
@@ -150,7 +157,7 @@ export class ChatTurnUseCase {
           payload: { searchId, query: q, afterDate: args.after_date, domains: args.domains }
         });
 
-        const searchRes = await search(q, {
+        const searchRes = await this.searchFn(q, {
           topic: args.topic || 'general',
           after_date: args.after_date || null,
           before_date: args.before_date || null,

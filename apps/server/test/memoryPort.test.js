@@ -1,24 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
-import { PGliteDb } from '../src/infrastructure/storage/postgres/pgliteDb.js';
-import { runMigrations } from '../src/infrastructure/storage/postgres/migrationRunner.js';
-import { PostgresSessionRepository } from '../src/infrastructure/storage/postgres/postgresSessionRepository.js';
-import { PostgresMessageRepository } from '../src/infrastructure/storage/postgres/postgresMessageRepository.js';
+import { InMemorySessionRepository, InMemoryMessageRepository } from './fakes/inMemoryMemoryRepo.js';
 
-test('Postgres Repositories: runs on in-memory PGlite with full-text search', async () => {
-  const db = new PGliteDb(':memory:');
-  await runMigrations(db);
-
-  const sessionRepo = new PostgresSessionRepository(db);
-  const messageRepo = new PostgresMessageRepository(db);
+test('MemoryPort Fake: creates sessions and stores messages', async () => {
+  const sessionRepo = new InMemorySessionRepository();
+  const messageRepo = new InMemoryMessageRepository(sessionRepo);
 
   const userId = crypto.randomUUID();
   const sessionId = crypto.randomUUID();
 
   // Create session
-  const session = await sessionRepo.createSession(sessionId, userId, 'Test CRM Shortlist');
-  assert.equal(session.title, 'Test CRM Shortlist');
+  const session = await sessionRepo.createSession(sessionId, userId, 'CRM Shortlist');
+  assert.equal(session.title, 'CRM Shortlist');
 
   // Save user turn
   await messageRepo.saveMessage({
@@ -43,7 +37,7 @@ test('Postgres Repositories: runs on in-memory PGlite with full-text search', as
     meta: { sources: [{ title: 'HubSpot Pricing', domain: 'hubspot.com' }] }
   });
 
-  // Test full-text keyword recall
+  // Test keyword and date recall
   const { pastContext } = await messageRepo.recall({
     userId,
     query: 'What was the HubSpot pricing we discussed?',
@@ -62,7 +56,4 @@ test('Postgres Repositories: runs on in-memory PGlite with full-text search', as
   const timeline = await messageRepo.getTimeline(userId);
   assert.equal(timeline.length, 1);
   assert.equal(timeline[0].date, '2026-11-09');
-
-  await db.close();
 });
-
