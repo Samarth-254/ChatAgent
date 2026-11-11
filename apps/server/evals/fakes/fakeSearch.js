@@ -31,3 +31,4 @@ export async function fakeSearch(query, options = {}) {
     sources: proc.map(p => ({ url: p.url, title: p.title, domain: p.domain, publishedDate: p.published_date, type: p.type }))
   };
 }
+

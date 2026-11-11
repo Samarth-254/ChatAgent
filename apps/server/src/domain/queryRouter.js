@@ -1,15 +1,13 @@
-import { config } from '../config/index.js';
-
 export function routeQuery({
   userMessage,
   _resolvedDates = [],
   hasPastContext = false,
-  hasBaseline = false
+  hasBaseline = false,
+  fastModel = 'gemini-2.5-flash-lite',
+  deepModel = 'gemini-2.5-flash-lite'
 }) {
   const text = (userMessage || '').trim();
   const lower = text.toLowerCase();
-  const fastModel = config.llm.fastModel;
-  const deepModel = config.llm.deepModel;
 
   const isGreeting = /^(hi|hello|hey|good\s+(morning|afternoon|evening)|howdy|greetings|who are you|what can you do)[\s!.,?]*$/i.test(lower);
   if (isGreeting) {
@@ -41,7 +39,7 @@ export function routeQuery({
   }
 
   if (hasBaseline || (hasPastContext && /\b(since|changed|still correct|verify)\b/i.test(lower))) {
-    return { model: deepModel, reason: 'Historical baseline re-verification against live sources', forceSearch: true, searchDepth: 'advanced', isDeep: true };
+    return { model: deepModel, reason: 'Historical baseline re-verification against live sources', forceSearch: true, searchDepth: 'basic', isDeep: true };
   }
 
   const researchSignals = [
@@ -57,7 +55,7 @@ export function routeQuery({
   ];
 
   if (researchSignals.some(pattern => pattern.test(lower))) {
-    return { model: deepModel, reason: 'Research / time-sensitive / competitive pricing signal', forceSearch: true, searchDepth: 'advanced', isDeep: true };
+    return { model: deepModel, reason: 'Research / time-sensitive / competitive pricing signal', forceSearch: true, searchDepth: 'basic', isDeep: true };
   }
 
   const stableKnowledge = [

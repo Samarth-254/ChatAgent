@@ -1,4 +1,3 @@
-import * as chrono from 'chrono-node';
 import { config } from '../../config/index.js';
 
 export function getNow() {
@@ -40,58 +39,13 @@ export function formatClockBlock(date = getNow(), timeZone = getTimezone()) {
   return `Today is ${weekday}, ${day} ${month} ${year}, ${time} ${timeZone} (${offset}).`;
 }
 
+import { resolveRelativeDates as domainResolveRelativeDates, formatLocalDateParts } from '../../domain/relativeDates.js';
+
 export function formatLocalDate(date, timeZone = getTimezone()) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
-  const y = parts.find(p => p.type === 'year')?.value;
-  const m = parts.find(p => p.type === 'month')?.value;
-  const d = parts.find(p => p.type === 'day')?.value;
-  return `${y}-${m}-${d}`;
+  return formatLocalDateParts(date, timeZone);
 }
 
 export function resolveRelativeDates(text, refDate = getNow(), timeZone = getTimezone()) {
-  if (!text || typeof text !== 'string') {
-    return { textWithNote: text, dateNote: null, resolvedDates: [] };
-  }
-
-  const parsed = chrono.parse(text, refDate, { forwardDate: false });
-  const resolvedDates = [];
-  const notes = [];
-  const lowerText = text.toLowerCase();
-  const hasSince = /\b(since|after|from)\b/i.test(lowerText);
-  const todayIso = formatLocalDate(refDate, timeZone);
-
-  for (const match of parsed) {
-    const raw = match.text;
-    const startDate = match.start.date();
-    let iso = formatLocalDate(startDate, timeZone);
-
-    if (iso > todayIso) {
-      const pastStart = new Date(startDate);
-      pastStart.setFullYear(pastStart.getFullYear() - 1);
-      iso = formatLocalDate(pastStart, timeZone);
-    }
-
-    const weekdayShort = startDate.toLocaleString('en-US', { timeZone, weekday: 'short' });
-    const isPast = iso <= todayIso;
-    const noteItem = `"${raw}" = ${iso} (${weekdayShort})`;
-    const afterDate = hasSince && isPast ? iso : null;
-
-    resolvedDates.push({ raw, iso, startDate, endDate: match.end ? match.end.date() : null, afterDate, isPast });
-    notes.push(noteItem);
-  }
-
-  if (hasSince && resolvedDates.length > 0 && resolvedDates[0].afterDate) {
-    notes.push(`"since" = after ${resolvedDates[0].afterDate}`);
-  }
-
-  const dateNote = notes.length > 0 ? `[date note: ${notes.join('; ')}]` : null;
-  const textWithNote = dateNote ? `${text}\n\n${dateNote}` : text;
-
-  return { textWithNote, dateNote, resolvedDates };
+  return domainResolveRelativeDates(text, refDate, timeZone);
 }
 

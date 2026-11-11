@@ -1,5 +1,3 @@
-import { formatClockBlock, getNow, getTimezone } from '../infrastructure/clock/clock.js';
-
 export const WEB_SEARCH_TOOL = {
   type: 'function',
   function: {
@@ -37,21 +35,14 @@ export const WEB_SEARCH_TOOL = {
 };
 
 export function buildSystemPrompt({
-  clockBlock = null,
+  clockBlock = '',
   pastContext = null,
   baseline = null,
-  _dateNote = null
+  dateNote = null,
+  availableDates = []
 } = {}) {
-  const clock = clockBlock || formatClockBlock();
-  const todayDateStr = getNow().toLocaleDateString('en-US', {
-    timeZone: getTimezone(),
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
   const promptSections = [
-    `=== CURRENT CLOCK ===\n${clock}\nTrust the [date note] appended to user messages; never compute or estimate dates yourself.`,
+    `=== CURRENT CLOCK ===\n${clockBlock}\nTrust the [date note] appended to user messages; never compute or estimate dates yourself.`,
 
     `=== BEHAVIOR & STYLE ===
 - Be fast, direct, and conversational. Lead immediately with the core answer. Keep responses concise by default.
@@ -68,8 +59,8 @@ export function buildSystemPrompt({
 
     `=== RE-VERIFICATION PROTOCOL ===
 - When a <baseline> exists:
-  1. Restate in one concise opening line what was discussed and on what date.
-  2. Search for each entity with after_date set to the baseline date.
+  1. Restate in one concise opening line what was discussed and on what date (e.g. "On Tuesday, 3 November 2026...").
+  2. Search for each entity mentioned in the baseline separately in parallel with after_date set to the baseline date.
   3. Organize your answer clearly into three sections:
      - "Changed since <date>:" (List specific pricing, feature, or version changes with dates and citations)
      - "No change found:" (List items checked where no evidence of change was found; explicitly note this means no evidence found in accessible sources, not absolute proof)
@@ -82,14 +73,17 @@ export function buildSystemPrompt({
 - Only cite sources you actually retrieved in this turn. Never invent sources, prices, dates, or specifications.
 - Prefer official sources over blogs or aggregators. If sources conflict, state the discrepancy and explain which source you favor and why.
 - If you cannot verify something after searching, honestly say "I couldn't verify this" and summarize what was checked.
-- Freshness line: Whenever web search was used, conclude your answer with "*Checked ${todayDateStr}.*"`,
+- Freshness line: Whenever web search was used, conclude your answer with "*Checked <today_date>.*"`,
 
-    `=== MEMORY USAGE ===
+    `=== MEMORY USAGE & HONEST NO-RECORD ANSWERS ===
 - You have persistent cross-session memory injected below.
 - Only reference past conversation content that appears in <past_context> or <baseline>. Never invent or claim to remember anything not present in these blocks.
-- If the user asks what they asked on a specific date:
-  - If matching records appear in <past_context>, list their verbatim questions with exact timestamps.
-  - If no record exists for that date, state unequivocally that you have no record for that date and list the nearest available dates if shown.`
+- If the user asks what they asked on a specific date (e.g. "What did I ask you on 3 November?"):
+  - If matching records appear in <past_context>, state their verbatim questions with exact timestamps.
+  - If NO messages exist for the asked date:
+    - You must state: "I have no record of any conversation on <date>."
+    - If other dates have stored conversations, list them: "Stored conversations are available for: ${availableDates.join(', ') || 'none'}."
+    - NEVER say you "have no access to past conversations" or "cannot access history". You have full access to your memory database; there is simply no record on that date.`
   ];
 
   if (baseline) {
@@ -100,6 +94,9 @@ export function buildSystemPrompt({
     promptSections.push(`=== RECALLED MEMORY FROM PAST SESSIONS ===\n${pastContext}`);
   }
 
+  if (dateNote) {
+    promptSections.push(`=== DATE GROUNDING NOTE ===\n${dateNote}`);
+  }
+
   return promptSections.join('\n\n');
 }
-

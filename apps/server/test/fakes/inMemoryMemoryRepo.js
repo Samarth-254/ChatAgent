@@ -1,3 +1,5 @@
+import { extractTopicKeywords, selectBestBaseline, formatBaseline } from '../../src/domain/recallPlanner.js';
+
 export class InMemorySessionRepository {
   constructor() {
     this.users = new Set();
@@ -123,16 +125,51 @@ export class InMemoryMessageRepository {
   }
 
   async findBaseline({ userId, query = '', resolvedDates = [] }) {
-    const { hits } = await this.recall({ userId, query, resolvedDates });
-    const assistantTurns = hits.filter(m => m.role === 'assistant');
-    if (assistantTurns.length === 0) return null;
-    const latest = assistantTurns[assistantTurns.length - 1];
-    return {
-      content: latest.content,
-      date: latest.local_date,
-      sources: latest.meta?.sources || [],
-      searches: latest.meta?.searches || []
-    };
+    const allCandidates = [];
+    let primaryDate = null;
+    for (const d of resolvedDates) {
+      if (d.candidates && Array.isArray(d.candidates)) {
+        for (const c of d.candidates) {
+          if (!allCandidates.includes(c)) allCandidates.push(c);
+        }
+      } else if (d.iso && !allCandidates.includes(d.iso)) {
+        allCandidates.push(d.iso);
+      }
+      if (!primaryDate && d.primaryCandidate) {
+        primaryDate = d.primaryCandidate;
+      }
+    }
+
+    const topicKeywords = extractTopicKeywords(query);
+    const userMsgs = this.messages.filter(m => m.user_id === userId);
+    const candidatePairs = [];
+
+    for (let i = 0; i < userMsgs.length; i++) {
+      if (userMsgs[i].role === 'user' && userMsgs[i + 1]?.role === 'assistant') {
+        const u = userMsgs[i];
+        const a = userMsgs[i + 1];
+        if (allCandidates.length === 0 || allCandidates.includes(u.local_date)) {
+          candidatePairs.push({
+            userMsg: u,
+            assistantMsg: a,
+            localDate: u.local_date
+          });
+        }
+        i++;
+      }
+    }
+
+    const bestPair = selectBestBaseline(candidatePairs, topicKeywords, primaryDate);
+    if (bestPair) {
+      return {
+        baselineText: formatBaseline(bestPair),
+        chosenDate: bestPair.localDate,
+        originalQuestion: bestPair.userMsg.content,
+        originalAnswer: bestPair.assistantMsg.content,
+        reason: `Matched stored conversation on ${bestPair.localDate} regarding "${topicKeywords || 'topic'}"`
+      };
+    }
+    return null;
   }
 
   async getTimeline(userId) {
@@ -157,3 +194,4 @@ export class InMemoryMessageRepository {
     }));
   }
 }
+

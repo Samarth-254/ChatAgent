@@ -2,6 +2,9 @@ import readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { EventType } from '@chatagent/shared';
 
+import { streamChat } from '../../infrastructure/llm/llm.js';
+import { search } from '../../infrastructure/search/search.js';
+import * as clock from '../../infrastructure/clock/clock.js';
 import { createDb } from '../../infrastructure/storage/postgres/createDb.js';
 import { runMigrations } from '../../infrastructure/storage/postgres/migrationRunner.js';
 import { PostgresSessionRepository } from '../../infrastructure/storage/postgres/postgresSessionRepository.js';
@@ -19,7 +22,13 @@ async function main() {
 
   const sessionRepository = new PostgresSessionRepository(db);
   const messageRepository = new PostgresMessageRepository(db);
-  const useCase = new ChatTurnUseCase({ sessionRepository, messageRepository });
+  const useCase = new ChatTurnUseCase({
+    sessionRepository,
+    messageRepository,
+    llmPort: { streamChat },
+    searchPort: { search },
+    clockPort: clock
+  });
 
   const userId = randomUUID();
   await sessionRepository.ensureUser(userId);

@@ -13,17 +13,24 @@ function checkDir(dir) {
       const content = fs.readFileSync(fullPath, 'utf8');
       const normalizedPath = fullPath.replace(/\\/g, '/');
 
-      // Rule: Domain layer must not import from application, infrastructure, or interfaces
+      // Rule 1: Domain layer must not import from application, infrastructure, interfaces, or config
       if (normalizedPath.includes('/domain/')) {
-        if (/from\s+['"].*\/(infrastructure|interfaces|application)\//.test(content)) {
-          violations.push(`Boundary Violation in ${fullPath}: Domain cannot import from outer layers.`);
+        if (/from\s+['"].*\/(infrastructure|interfaces|application|config)\//.test(content)) {
+          violations.push(`[Rule 1 Violation] in ${fullPath}: Domain cannot import from outer layers (infrastructure, interfaces, application, config).`);
         }
       }
 
-      // Rule: Application layer must not import from interfaces
-      if (normalizedPath.includes('/application/')) {
-        if (/from\s+['"].*\/interfaces\//.test(content)) {
-          violations.push(`Boundary Violation in ${fullPath}: Application cannot import from interfaces.`);
+      // Rule 2: Application layer must only import from domain, ports, shared, or node stdlib. Never infrastructure, interfaces, config.
+      if (normalizedPath.includes('/application/') && !normalizedPath.includes('/ports/')) {
+        if (/from\s+['"].*\/(infrastructure|interfaces|config)\//.test(content)) {
+          violations.push(`[Rule 2 Violation] in ${fullPath}: Application cannot import from infrastructure, interfaces, or config.`);
+        }
+      }
+
+      // Rule 3: Infrastructure must not import from application or interfaces
+      if (normalizedPath.includes('/infrastructure/')) {
+        if (/from\s+['"].*\/(application|interfaces)\//.test(content)) {
+          violations.push(`[Rule 3 Violation] in ${fullPath}: Infrastructure cannot import from application or interfaces.`);
         }
       }
     }
@@ -42,4 +49,3 @@ if (violations.length > 0) {
 } else {
   console.log('✅ Architectural boundaries verified: 0 violations found.');
 }
-

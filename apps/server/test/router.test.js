@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { routeQuery } from '../src/application/router.js';
+import { routeQuery } from '../src/domain/queryRouter.js';
 
 test('Router: routes greeting to fast model with no search', () => {
   const res = routeQuery({ userMessage: 'Hey there! How are you?' });

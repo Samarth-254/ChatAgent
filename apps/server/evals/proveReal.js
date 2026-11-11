@@ -4,6 +4,9 @@ import { createDb } from '../src/infrastructure/storage/postgres/createDb.js';
 import { runMigrations } from '../src/infrastructure/storage/postgres/migrationRunner.js';
 import { PostgresSessionRepository } from '../src/infrastructure/storage/postgres/postgresSessionRepository.js';
 import { PostgresMessageRepository } from '../src/infrastructure/storage/postgres/postgresMessageRepository.js';
+import { streamChat } from '../src/infrastructure/llm/llm.js';
+import { search } from '../src/infrastructure/search/search.js';
+import * as clock from '../src/infrastructure/clock/clock.js';
 import { ChatTurnUseCase } from '../src/application/chatTurnUseCase.js';
 
 process.env.FIXED_NOW = '2026-11-10T09:00:00+05:30';
@@ -20,7 +23,13 @@ async function main() {
 
   const sessionRepo = new PostgresSessionRepository(db);
   const messageRepo = new PostgresMessageRepository(db);
-  const useCase = new ChatTurnUseCase({ sessionRepository: sessionRepo, messageRepository: messageRepo });
+  const useCase = new ChatTurnUseCase({
+    sessionRepository: sessionRepo,
+    messageRepository: messageRepo,
+    llmPort: { streamChat },
+    searchPort: { search },
+    clockPort: clock
+  });
 
   const testUserId = crypto.randomUUID();
   await sessionRepo.ensureUser(testUserId);
@@ -206,3 +215,4 @@ main().catch(err => {
   console.error('Fatal execution error:', err);
   process.exit(1);
 });
+

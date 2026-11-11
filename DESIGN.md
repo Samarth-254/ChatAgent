@@ -57,13 +57,14 @@ Dependencies point inward strictly: `Interfaces -> Application -> Domain`. Outer
 ## Evaluation Results (Real Numbers)
 
 From our automated test suite against real Neon PostgreSQL:
-- **Test Suite Pass Rate**: 100.0% (20/20 cases passed)
-- **Deterministic Harness over Neon**: TTFT p50 = 476ms, p95 = 778ms; Total latency p50 = 635ms, p95 = 932ms
-- **Live End-to-End Latencies (Gemini 2.5 Flash + Tavily + Neon)**:
-  - 5-entity CRM research (5 parallel searches): TTFT 21.1s, Total 22.9s
-  - Historical recall & live re-verification (2 parallel searches): TTFT 7.7s, Total 9.7s
-  - Time-bounded hosting price verification (1 search): TTFT 12.4s, Total 14.6s
-  - Fresh user / no-history negative test (0 searches): TTFT 1.8s, Total 2.0s
+- **Test Suite Pass Rate**: 100.0% (20/20 cases passed in `eval:mock`)
+- **Deterministic Harness over Neon**: TTFT p50 = 715ms, p95 = 874ms; Total latency p50 = 882ms, p95 = 1068ms
+- **Live End-to-End Latencies (Gemini 2.5 Flash Lite + Tavily + Neon)**:
+  - 5-entity CRM research (5 parallel searches): TTFT 12.4s, Total 14.9s
+  - Historical recall & live re-verification (4 parallel searches): TTFT 7.8s, Total 9.5s
+  - Time-bounded hosting price verification (3 parallel searches): TTFT 6.7s, Total 8.0s
+  - Fresh user / no-history negative test (0 searches): TTFT 1.6s, Total 1.9s
+  - Chit-chat / Stable facts (0 searches): TTFT 1.4s–1.6s, Total 1.7s–1.9s
 - **Average Searches**: 0.9 per query across test suite (0 for greetings/math, 1–5 parallel for research)
 
 ## What I'd Do With Another Week

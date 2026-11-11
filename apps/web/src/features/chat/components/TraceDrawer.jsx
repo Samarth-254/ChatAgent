@@ -87,21 +87,44 @@ export function TraceDrawer({ isOpen, onClose, trace }) {
           </div>
         )}
 
-        {/* Latency & Timings */}
+        {/* Latency & Phase Timings */}
         {trace.timings && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '8px' }}>
               <Clock size={14} />
-              <span>Latencies</span>
+              <span>Phase Latencies & Timings</span>
             </div>
-            <div style={{ backgroundColor: 'var(--hover)', padding: '10px', borderRadius: 'var(--radius-md)', fontSize: '13px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Time to First Token</div>
-                <div style={{ fontWeight: 600, fontSize: '15px' }}>{trace.timings.ttftMs}ms</div>
+            <div style={{ backgroundColor: 'var(--hover)', padding: '10px', borderRadius: 'var(--radius-md)', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--muted)' }}>Date & Recall</span>
+                <span style={{ fontWeight: 600 }}>{trace.timings.dateRecallMs || 0}ms</span>
               </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Total Duration</div>
-                <div style={{ fontWeight: 600, fontSize: '15px' }}>{trace.timings.totalMs}ms</div>
+              {trace.timings.firstLlmCallMs !== undefined && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--muted)' }}>1st LLM (Tool Call)</span>
+                  <span style={{ fontWeight: 600 }}>{trace.timings.firstLlmCallMs}ms</span>
+                </div>
+              )}
+              {trace.timings.searchMs !== undefined && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--muted)' }}>Parallel Search</span>
+                  <span style={{ fontWeight: 600 }}>{trace.timings.searchMs}ms</span>
+                </div>
+              )}
+              {trace.timings.secondLlmCallMs !== undefined && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--muted)' }}>2nd LLM (Synthesis)</span>
+                  <span style={{ fontWeight: 600 }}>{trace.timings.secondLlmCallMs}ms</span>
+                </div>
+              )}
+              <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Time to First Token (TTFT)</span>
+                <span style={{ fontWeight: 600 }}>{trace.timings.ttftMs}ms</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Total Turn Latency</span>
+                <span style={{ fontWeight: 600 }}>{trace.timings.totalMs}ms</span>
               </div>
             </div>
           </div>

@@ -4,8 +4,12 @@ import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
+import { streamChat } from '../src/infrastructure/llm/llm.js';
+import { search } from '../src/infrastructure/search/search.js';
+import * as clock from '../src/infrastructure/clock/clock.js';
 import { createDb } from '../src/infrastructure/storage/postgres/createDb.js';
 import { seedEvalDb, cleanEvalDb, EVAL_USER_ID } from './seed.js';
+import { config } from '../src/config/index.js';
 import { ChatTurnUseCase } from '../src/application/chatTurnUseCase.js';
 import { fakeStreamChat } from './fakes/fakeLlm.js';
 import { fakeSearch } from './fakes/fakeSearch.js';
@@ -39,17 +43,15 @@ async function runEvals() {
   const { sessionRepo, messageRepo } = await seedEvalDb(db);
 
   // Build composition root (inject fakes only if isMock)
-  const chatTurnUseCase = isMock
-    ? new ChatTurnUseCase({
-        sessionRepository: sessionRepo,
-        messageRepository: messageRepo,
-        llmStream: fakeStreamChat,
-        searchFn: fakeSearch
-      })
-    : new ChatTurnUseCase({
-        sessionRepository: sessionRepo,
-        messageRepository: messageRepo
-      });
+  const chatTurnUseCase = new ChatTurnUseCase({
+    sessionRepository: sessionRepo,
+    messageRepository: messageRepo,
+    llmPort: isMock ? { streamChat: fakeStreamChat } : { streamChat },
+    searchPort: isMock ? { search: fakeSearch } : { search },
+    clockPort: clock,
+    fastModel: config.llm.fastModel,
+    deepModel: config.llm.deepModel
+  });
 
   const casesPath = path.join(__dirname, 'cases.json');
   const cases = JSON.parse(fs.readFileSync(casesPath, 'utf8'));
@@ -62,36 +64,65 @@ async function runEvals() {
   try {
     for (let i = 0; i < cases.length; i++) {
       const c = cases[i];
+      if (i > 0 && !isMock) {
+        // Delay between live API cases to respect provider rate limits (e.g. 15 RPM)
+        await new Promise(r => setTimeout(r, 2500));
+      }
+
       process.stdout.write(`[${String(i + 1).padStart(2, '0')}/${cases.length}] ${c.id.padEnd(36)} `);
 
       const sessionId = crypto.randomUUID();
       await sessionRepo.createSession(sessionId, EVAL_USER_ID, c.prompt.slice(0, 30));
 
       let firstTokenTime = null;
-      const startTime = Date.now();
       let searchesIssued = 0;
+      let turnRes = null;
+      let totalTime = 0;
+      let ttft = 0;
+      let text = '';
+      let searchCount = 0;
+      let passed = false;
+      const failures = [];
 
-      try {
-        const turnRes = await chatTurnUseCase.execute({
-          userId: EVAL_USER_ID,
-          sessionId,
-          message: c.prompt,
-          onEvent: (event) => {
-            if (event.type === 'token' && firstTokenTime === null) {
-              firstTokenTime = Date.now() - startTime;
+      let attempt = 0;
+      while (attempt < 3) {
+        attempt++;
+        try {
+          const startTime = Date.now();
+          firstTokenTime = null;
+          searchesIssued = 0;
+
+          turnRes = await chatTurnUseCase.execute({
+            userId: EVAL_USER_ID,
+            sessionId,
+            message: c.prompt,
+            onEvent: (event) => {
+              if (event.type === 'token' && firstTokenTime === null) {
+                firstTokenTime = Date.now() - startTime;
+              }
+              if (event.type === 'search.started') {
+                searchesIssued++;
+              }
             }
-            if (event.type === 'search.started') {
-              searchesIssued++;
-            }
+          });
+
+          totalTime = Date.now() - startTime;
+          ttft = firstTokenTime || totalTime;
+          text = turnRes.text || '';
+          searchCount = turnRes.meta?.searches?.length || searchesIssued;
+          break;
+        } catch (err) {
+          const is429 = err.status === 429 || String(err.status) === '429' || err.message?.includes('429') || err.message?.includes('rate');
+          if (is429 && attempt < 4) {
+            await new Promise(r => setTimeout(r, 6000 * attempt));
+            continue;
           }
-        });
+          failures.push(err.message);
+          break;
+        }
+      }
 
-        const totalTime = Date.now() - startTime;
-        const ttft = firstTokenTime || totalTime;
-        const text = turnRes.text || '';
-        const searchCount = turnRes.meta?.searches?.length || searchesIssued;
-
-        const failures = [];
+      if (turnRes) {
         if (c.expectSearch !== undefined) {
           if (c.expectSearch && searchCount === 0) {
             failures.push('Expected search to be issued, but none was called.');
@@ -119,39 +150,28 @@ async function runEvals() {
             }
           }
         }
+      }
 
-        const passed = failures.length === 0;
-        ttfts.push(ttft);
-        totalTimes.push(totalTime);
-        searchCounts.push(searchCount);
+      passed = failures.length === 0;
+      ttfts.push(ttft);
+      totalTimes.push(totalTime);
+      searchCounts.push(searchCount);
 
-        results.push({
-          id: c.id,
-          prompt: c.prompt,
-          passed,
-          failures,
-          ttftMs: ttft,
-          totalTimeMs: totalTime,
-          searchCount,
-          responseExcerpt: text.slice(0, 140).replace(/\n/g, ' ')
-        });
+      results.push({
+        id: c.id,
+        prompt: c.prompt,
+        passed,
+        failures,
+        ttftMs: ttft,
+        totalTimeMs: totalTime,
+        searchCount,
+        responseExcerpt: text.slice(0, 140).replace(/\n/g, ' ')
+      });
 
-        if (passed) {
-          console.log(`\x1b[32mPASS\x1b[0m (${ttft}ms TTFT, ${totalTime}ms tot, ${searchCount} srch)`);
-        } else {
-          console.log(`\x1b[31mFAIL\x1b[0m (${failures.join('; ')})`);
-        }
-      } catch (err) {
-        console.log(`\x1b[31mERROR\x1b[0m: ${err.message}`);
-        results.push({
-          id: c.id,
-          prompt: c.prompt,
-          passed: false,
-          failures: [err.message],
-          ttftMs: 0,
-          totalTimeMs: 0,
-          searchCount: 0
-        });
+      if (passed) {
+        console.log(`\x1b[32mPASS\x1b[0m (${ttft}ms TTFT, ${totalTime}ms tot, ${searchCount} srch)`);
+      } else {
+        console.log(`\x1b[31mFAIL\x1b[0m (${failures.join('; ')})`);
       }
     }
   } finally {
@@ -188,14 +208,21 @@ async function runEvals() {
   if (!fs.existsSync(evalsDir)) fs.mkdirSync(evalsDir, { recursive: true });
   fs.writeFileSync(resultsPath, JSON.stringify({ summary, results }, null, 2));
 
-  console.log('\n======================================================');
-  console.log('   EVALUATION SUMMARY');
-  console.log('======================================================');
+  console.log('\n========================================================================================');
+  console.log('                                EVALUATION RESULTS TABLE                                ');
+  console.log('========================================================================================');
+  console.log('Case ID                                Status   Searches   TTFT (ms)   Total (ms)');
+  console.log('----------------------------------------------------------------------------------------');
+  for (const r of results) {
+    const statusStr = r.passed ? '\x1b[32mPASS\x1b[0m  ' : '\x1b[31mFAIL\x1b[0m  ';
+    console.log(`${r.id.padEnd(38)} ${statusStr} ${String(r.searchCount).padStart(8)}   ${String(r.ttftMs).padStart(9)}   ${String(r.totalTimeMs).padStart(10)}`);
+  }
+  console.log('========================================================================================');
   console.log(`Pass Rate:       ${summary.passRate} (${passedCount}/${results.length})`);
   console.log(`TTFT:            p50 = ${p50TTFT}ms, p95 = ${p95TTFT}ms`);
   console.log(`Total Latency:   p50 = ${p50Total}ms, p95 = ${p95Total}ms`);
   console.log(`Avg Searches:    ${avgSearches} per prompt`);
-  console.log('======================================================');
+  console.log('========================================================================================');
   console.log(`Report written to evals/results.json\n`);
 }
 

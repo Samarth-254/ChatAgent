@@ -1,3 +1,5 @@
+import { extractTopicKeywords, selectBestBaseline, formatBaseline } from '../../../domain/recallPlanner.js';
+
 function formatTurn(msg) {
   const d = new Date(msg.created_at);
   const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
@@ -73,17 +75,33 @@ export class PostgresMessageRepository {
     }
 
     // 2. Full-text search using websearch_to_tsquery and ts_rank
-    const cleanQuery = query.replace(/[^\w\s]/g, ' ').trim();
-    if (cleanQuery) {
+    const topic = extractTopicKeywords(query);
+    const searchTerms = topic || query.replace(/[^\w\s]/g, ' ').trim();
+    if (searchTerms) {
       try {
-        const { rows } = await this.db.query(
+        let { rows } = await this.db.query(
           `SELECT *, ts_rank(content_tsv, websearch_to_tsquery('english', $2)) AS rank
            FROM messages
            WHERE user_id = $1 AND content_tsv @@ websearch_to_tsquery('english', $2)
            ORDER BY rank DESC, created_at DESC
            LIMIT 6`,
-          [userId, cleanQuery]
+          [userId, searchTerms]
         );
+        if (rows.length === 0 && topic) {
+          const terms = topic.split(/\s+/).filter(w => w.length > 2);
+          if (terms.length > 0) {
+            const orQuery = terms.map(t => `${t}:*`).join(' | ');
+            const res = await this.db.query(
+              `SELECT *, ts_rank(content_tsv, to_tsquery('english', $2)) AS rank
+               FROM messages
+               WHERE user_id = $1 AND content_tsv @@ to_tsquery('english', $2)
+               ORDER BY rank DESC, created_at DESC
+               LIMIT 6`,
+              [userId, orQuery]
+            );
+            rows = res.rows;
+          }
+        }
         for (const r of rows) {
           if (!seenIds.has(r.id)) {
             seenIds.add(r.id);
@@ -114,61 +132,91 @@ export class PostgresMessageRepository {
   }
 
   async findBaseline({ userId, query, resolvedDates = [] }) {
-    const isVerif = /\b(changed since|is still correct|is your answer still correct|any update|has any pricing changed|changed pricing)\b/i.test(query);
+    const isVerif = /\b(changed since|is still correct|is your answer still correct|any update|has any pricing changed|changed pricing|since then)\b/i.test(query);
     if (!isVerif && resolvedDates.length === 0) return null;
 
-    let targetDate = resolvedDates.find(d => d.isPast && d.iso)?.iso;
-    let userMsg = null;
-    let assistantMsg = null;
+    // Collect all candidate dates across all resolved expressions
+    const allCandidates = [];
+    let primaryDate = null;
+    for (const d of resolvedDates) {
+      if (d.candidates && Array.isArray(d.candidates)) {
+        for (const c of d.candidates) {
+          if (!allCandidates.includes(c)) allCandidates.push(c);
+        }
+      } else if (d.iso && !allCandidates.includes(d.iso)) {
+        allCandidates.push(d.iso);
+      }
+      if (!primaryDate && d.primaryCandidate) {
+        primaryDate = d.primaryCandidate;
+      }
+    }
 
-    if (targetDate) {
+    const topicKeywords = extractTopicKeywords(query);
+    const candidatePairs = [];
+
+    // Query messages across all candidate dates
+    if (allCandidates.length > 0) {
       const { rows } = await this.db.query(
         `SELECT * FROM messages
-         WHERE user_id = $1 AND local_date = $2
-         ORDER BY created_at ASC`,
-        [userId, targetDate]
+         WHERE user_id = $1 AND local_date = ANY($2::date[])
+         ORDER BY local_date ASC, created_at ASC`,
+        [userId, allCandidates]
       );
+
       for (let i = 0; i < rows.length; i++) {
         if (rows[i].role === 'user' && rows[i + 1]?.role === 'assistant') {
-          userMsg = rows[i];
-          assistantMsg = rows[i + 1];
-          break;
+          candidatePairs.push({
+            userMsg: rows[i],
+            assistantMsg: rows[i + 1],
+            localDate: rows[i].local_date
+          });
+          i++; // skip assistant
         }
       }
     }
 
-    if (!userMsg && isVerif) {
-      const clean = query.replace(/[^\w\s]/g, ' ').trim();
-      if (clean) {
-        try {
-          const { rows } = await this.db.query(
+    let bestPair = selectBestBaseline(candidatePairs, topicKeywords, primaryDate);
+
+    // Fallback: if no baseline found on candidate dates, search via full-text keyword ranking across all dates
+    if (!bestPair && isVerif && topicKeywords) {
+      try {
+        const { rows } = await this.db.query(
+          `SELECT *, ts_rank(content_tsv, websearch_to_tsquery('english', $2)) as rank
+           FROM messages
+           WHERE user_id = $1 AND role = 'assistant' AND content_tsv @@ websearch_to_tsquery('english', $2)
+           ORDER BY rank DESC, created_at DESC LIMIT 1`,
+          [userId, topicKeywords]
+        );
+        if (rows.length > 0) {
+          const assistantMsg = rows[0];
+          const uRes = await this.db.query(
             `SELECT * FROM messages
-             WHERE user_id = $1 AND role = 'assistant' AND content_tsv @@ websearch_to_tsquery('english', $2)
+             WHERE session_id = $1 AND created_at < $2 AND role = 'user'
              ORDER BY created_at DESC LIMIT 1`,
-            [userId, clean]
+            [assistantMsg.session_id, assistantMsg.created_at]
           );
-          if (rows.length > 0) {
-            assistantMsg = rows[0];
-            const uRes = await this.db.query(
-              `SELECT * FROM messages
-               WHERE session_id = $1 AND created_at < $2 AND role = 'user'
-               ORDER BY created_at DESC LIMIT 1`,
-              [assistantMsg.session_id, assistantMsg.created_at]
-            );
-            userMsg = uRes.rows[0] || null;
-            targetDate = assistantMsg.local_date;
+          if (uRes.rows[0]) {
+            bestPair = {
+              userMsg: uRes.rows[0],
+              assistantMsg,
+              localDate: assistantMsg.local_date
+            };
           }
-        } catch {}
-      }
+        }
+      } catch {}
     }
 
-    if (userMsg && assistantMsg) {
-      const meta = typeof assistantMsg.meta === 'string' ? JSON.parse(assistantMsg.meta) : assistantMsg.meta;
-      let srcBlock = meta?.sources?.length
-        ? '\nEarlier sources: ' + meta.sources.map(s => `${s.title} (${s.domain}, pub: ${s.publishedDate || s.published_date || 'unknown'})`).join('; ')
-        : '';
-      return `<baseline date="${targetDate}">\n[Original Question on ${targetDate}]: ${userMsg.content}\n[Original Answer on ${targetDate}]: ${assistantMsg.content}${srcBlock}\n</baseline>`;
+    if (bestPair) {
+      const baselineText = formatBaseline(bestPair);
+      return {
+        baselineText,
+        chosenDate: bestPair.localDate,
+        originalQuestion: bestPair.userMsg.content,
+        originalAnswer: bestPair.assistantMsg.content,
+        reason: `Matched stored conversation on ${bestPair.localDate} regarding "${topicKeywords || 'topic'}"`
+      };
     }
+
     return null;
   }
 

@@ -81,15 +81,22 @@ export async function* streamChat({ model, messages, tools = undefined, tool_cho
       yield { type: 'finish_reason', finishReason: finish || 'stop' };
       return;
     } catch (err) {
-      const is429 = err.status === 429 || (err.message && err.message.toLowerCase().includes('rate limit'));
-      if (is429 && targetModel === deepModel && !hasFallenBack) {
+      const is429 = err.status === 429 ||
+        String(err.status) === '429' ||
+        (err.message && (
+          err.message.includes('429') ||
+          err.message.toLowerCase().includes('rate limit') ||
+          err.message.toLowerCase().includes('resource has been exhausted')
+        ));
+      if (is429 && targetModel === deepModel && !hasFallenBack && fastModel !== deepModel) {
         targetModel = fastModel;
         hasFallenBack = true;
         yield { type: 'fallback', model: fastModel, reason: 'Deep model rate limited; fell back to fast model.' };
         continue;
       }
-      if ((is429 || (err.status >= 500 && err.status < 600)) && attempt < 3) {
-        await new Promise(r => setTimeout(r, getRetryDelay(err, attempt)));
+      if ((is429 || (err.status >= 500 && err.status < 600)) && attempt < 4) {
+        const delay = is429 ? Math.max(4000 * attempt, getRetryDelay(err, attempt)) : getRetryDelay(err, attempt);
+        await new Promise(r => setTimeout(r, delay));
         continue;
       }
       throw err;

@@ -6,6 +6,9 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import { config } from './config/index.js';
+import { streamChat } from './infrastructure/llm/llm.js';
+import { search } from './infrastructure/search/search.js';
+import * as clock from './infrastructure/clock/clock.js';
 import { createDb } from './infrastructure/storage/postgres/createDb.js';
 import { runMigrations } from './infrastructure/storage/postgres/migrationRunner.js';
 import { PostgresSessionRepository } from './infrastructure/storage/postgres/postgresSessionRepository.js';
@@ -63,7 +66,15 @@ await runMigrations(db);
 
 const sessionRepository = new PostgresSessionRepository(db);
 const messageRepository = new PostgresMessageRepository(db);
-const chatTurnUseCase = new ChatTurnUseCase({ sessionRepository, messageRepository });
+const chatTurnUseCase = new ChatTurnUseCase({
+  sessionRepository,
+  messageRepository,
+  llmPort: { streamChat },
+  searchPort: { search },
+  clockPort: clock,
+  fastModel: config.llm.fastModel,
+  deepModel: config.llm.deepModel
+});
 
 // Health check (unauthenticated)
 app.use('/api/v1/health', createHealthRouter({ db }));
