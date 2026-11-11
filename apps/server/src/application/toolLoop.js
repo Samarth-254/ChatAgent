@@ -41,11 +41,15 @@ export class ToolLoop {
     while (round < maxRounds) {
       round++;
       const isFirstRound = round === 1;
+      const isLastRound = round === maxRounds;
       const forceThisRound = isFirstRound && route.forceSearch;
       const toolChoice = forceThisRound ? { type: 'function', function: { name: 'web_search' } } : 'auto';
 
       // FAST_MODEL for initial tool selection, activeModel (DEEP_MODEL) for synthesis
       const modelForRound = (forceThisRound && this.fastModel) ? this.fastModel : activeModel;
+
+      // On final round, omit tools to guarantee the model synthesizes the answer
+      const tools = isLastRound ? undefined : [WEB_SEARCH_TOOL];
 
       let currentRoundCalls = null;
       const llmStart = Date.now();
@@ -53,8 +57,8 @@ export class ToolLoop {
       const stream = this.llmPort.streamChat({
         model: modelForRound,
         messages,
-        tools: [WEB_SEARCH_TOOL],
-        tool_choice: toolChoice,
+        tools,
+        tool_choice: isLastRound ? undefined : toolChoice,
         signal,
         reasoningEffort: 'low'
       });
@@ -147,7 +151,13 @@ export class ToolLoop {
 
         onEvent({
           type: EventType.SEARCH_FINISHED,
-          payload: { searchId, resultCount: searchRes.results?.length || 0, ms: sDuration }
+          payload: {
+            searchId,
+            query: q,
+            durationMs: sDuration,
+            resultCount: searchRes.results?.length || 0,
+            ms: sDuration
+          }
         });
 
         return {

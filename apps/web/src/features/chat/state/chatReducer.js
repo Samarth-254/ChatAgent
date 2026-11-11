@@ -94,19 +94,22 @@ export function chatReducer(state, action) {
 
     case EventType.SEARCH_FINISHED: {
       const active = state.activeSearches.filter(s => s.searchId !== action.payload.searchId);
+      const currentActive = state.activeSearches.find(s => s.searchId === action.payload.searchId);
+      const query = action.payload.query || currentActive?.query || 'web search';
+      const durationMs = action.payload.durationMs || action.payload.ms || (currentActive ? Date.now() - currentActive.startedAt : 0);
       return {
         ...state,
         activeSearches: active,
         completedSearches: [
           ...state.completedSearches,
-          { query: action.payload.query, durationMs: action.payload.durationMs }
+          { query, durationMs }
         ],
         currentStatus: active.length > 0 ? `Searching: "${active[0].query}"` : 'Reading sources...',
         currentTrace: {
           ...state.currentTrace,
           searches: [
             ...(state.currentTrace?.searches || []),
-            { query: action.payload.query, ms: action.payload.durationMs }
+            { query, ms: durationMs }
           ]
         }
       };

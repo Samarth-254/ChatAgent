@@ -92,3 +92,4 @@ export function isOfficialDomain(url, entityOrQuery) {
   const domains = entityOrQuery ? extractKnownDomains(entityOrQuery) : Object.values(KNOWN_DOMAINS).flat();
   return domains.some(d => hostname === d || hostname.endsWith(`.${d}`));
 }
+

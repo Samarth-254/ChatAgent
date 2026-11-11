@@ -44,8 +44,8 @@ export function StatusTimeline({ activeSearches = [], completedSearches = [], cu
                   paddingLeft: '18px'
                 }}
               >
-                <span>• "{s.query}"</span>
-                <span style={{ fontSize: '11px', opacity: 0.7 }}>({s.durationMs}ms)</span>
+                <span>• "{s.query || 'web search'}"</span>
+                <span style={{ fontSize: '11px', opacity: 0.7 }}>({typeof s.durationMs === 'number' ? `${s.durationMs}ms` : 'done'})</span>
               </div>
             ))}
           </div>

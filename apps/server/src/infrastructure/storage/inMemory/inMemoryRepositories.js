@@ -130,6 +130,8 @@ export class InMemoryMessageRepository {
   }
 
   async findBaseline({ userId, query = '', resolvedDates = [] }) {
+    const isVerif = /\b(change[sd]?\s+pricing|pricing\s+change[sd]?|change[sd]?\s+since|is\s+still\s+correct|any\s+update|since\s+then)\b/i.test(query);
+    if (!isVerif) return null;
     const allCandidates = [];
     let primaryDate = null;
     for (const d of resolvedDates) {
