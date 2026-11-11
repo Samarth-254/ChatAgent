@@ -5,6 +5,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import { Copy, Check, Activity } from 'lucide-react';
 import { SourceCards } from './SourceCards.jsx';
 import { StatusTimeline } from './StatusTimeline.jsx';
+import { formatTime } from '../../../lib/formatDate.js';
 
 export function Message({
   message,
@@ -29,19 +30,25 @@ export function Message({
   if (isUser) {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', marginBottom: '24px' }}>
-        <div
-          style={{
-            backgroundColor: 'var(--bubble)',
-            color: 'var(--text)',
-            padding: '12px 16px',
-            borderRadius: '16px 16px 4px 16px',
-            maxWidth: '82%',
-            fontSize: '15px',
-            lineHeight: '1.5',
-            whiteSpace: 'pre-wrap'
-          }}
-        >
-          {message.content}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', maxWidth: '82%' }}>
+          <div
+            style={{
+              backgroundColor: 'var(--bubble)',
+              color: 'var(--text)',
+              padding: '12px 16px',
+              borderRadius: '16px 16px 4px 16px',
+              fontSize: '15px',
+              lineHeight: '1.5',
+              whiteSpace: 'pre-wrap'
+            }}
+          >
+            {message.content}
+          </div>
+          {message.created_at && (
+            <span style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px', opacity: 0.75 }}>
+              {formatTime(message.created_at)}
+            </span>
+          )}
         </div>
       </div>
     );
@@ -158,6 +165,12 @@ export function Message({
               <Activity size={13} />
               <span>Trace</span>
             </button>
+          )}
+
+          {message.created_at && (
+            <span style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: 'auto', opacity: 0.75 }}>
+              {formatTime(message.created_at)}
+            </span>
           )}
         </div>
       )}

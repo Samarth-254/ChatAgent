@@ -55,6 +55,6 @@ export const config = {
   },
   clock: {
     fixedNow,
-    userTz: process.env.USER_TZ || null
+    userTz: process.env.USER_TZ || 'Asia/Kolkata'
   }
 };
