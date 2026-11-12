@@ -1,31 +1,12 @@
-<div align="center">
+# ChatAgent
 
-# 🌐 ChatAgent
+A full-stack conversational agent featuring live web research, deterministic temporal grounding, and cross-session memory in PostgreSQL.
 
-**An elite, production-grade conversational AI agent equipped with live web research, deterministic temporal grounding, and cross-session memory.**
-
-[![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20(Ports%20%26%20Adapters)-blueviolet?style=for-the-badge)](file:///d:/ChatAgent/DESIGN.md)
-[![Tests](https://img.shields.io/badge/Tests-27%20Passed%20(100%25)-success?style=for-the-badge)](file:///d:/ChatAgent/package.json)
-[![Eval Suite](https://img.shields.io/badge/Eval%20Benchmark-20%2F20%20(100%25)-brightgreen?style=for-the-badge)](file:///d:/ChatAgent/evals/results-plumbing.json)
-[![Node](https://img.shields.io/badge/Node.js-20%2B%20(ESM)-339933?style=for-the-badge&logo=node.js)](file:///d:/ChatAgent/package.json)
-[![Database](https://img.shields.io/badge/Database-Neon%20Postgres-00E599?style=for-the-badge&logo=postgresql)](https://neon.tech)
-[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](file:///d:/ChatAgent/package.json)
-
-<p align="center">
-  <a href="#-key-features">Key Features</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="#-the-3-core-challenge-scenarios">Dataset Scenarios</a> •
-  <a href="#-quickstart">Quickstart</a> •
-  <a href="#-turn-lifecycle">Turn Lifecycle</a> •
-  <a href="#-scripts--benchmarks">Scripts</a> •
-  <a href="#-deployment-on-render">Deployment</a>
-</p>
-
-</div>
+[Overview](#overview) • [Key Features](#key-features) • [Architecture](#architecture) • [Dataset Scenarios](#the-3-core-challenge-scenarios) • [Quickstart](#quickstart) • [Scripts](#available-scripts) • [Deployment](#deployment-on-render)
 
 ---
 
-## 💡 Overview
+## Overview
 
 Most chat agents fail when answering real-world temporal queries like:
 > *"Last Tuesday I asked you about Postgres hosting. Has any pricing changed since then?"*
@@ -41,19 +22,19 @@ Standard LLM architectures hallucinate relative dates, confuse temporal bounds (
 
 ---
 
-## ⚡ Key Features
+## Key Features
 
-- **🎯 Exactly One Tool (`web_search`)**: Fully adheres to challenge rules. Zero extraneous LLM tools.
-- **⚡ Parallel Entity Research**: When comparing or verifying multiple entities (e.g. 5 shortlisted CRMs), searches execute concurrently via `Promise.all` with per-entity query generation.
-- **🏢 Official Domain Prioritization**: Boosts official vendor domains (e.g. `hubspot.com`, `neon.tech`, `supabase.com`) to filter out SEO spam, content farms, and listicles.
-- **🕒 Calendar-Aware Date Arithmetic**: Deterministically resolves dates like *"On Monday"*, *"3 November"*, *"Last Tuesday"*, and *"yesterday"* with automatic year-rollover handling.
-- **🛡️ Strict Evidence Re-Verification**: Changes are only reported if supported by a source published *after* the baseline date or an official discrepancy. Outdated articles before the baseline date are rejected as evidence.
-- **🔒 Enterprise Security**: Full SQL injection prevention (100% parameterized queries), XSS sanitization (`rehype-sanitize`), Helmet security headers, rate limiting, and client isolation.
-- **📦 Hexagonal Monorepo**: Pure separation of concerns (`apps/server`, `apps/web`, `packages/shared`) verified by automated architectural boundary tests.
+- **Single Tool (`web_search`)**: Fully adheres to challenge constraints. Exactly one tool is exposed to the model.
+- **Parallel Entity Research**: When comparing or verifying multiple entities (e.g. 5 shortlisted CRMs), searches execute concurrently via `Promise.all` with per-entity query generation.
+- **Official Domain Prioritization**: Boosts official vendor domains (e.g. `hubspot.com`, `neon.tech`, `supabase.com`) to filter out SEO spam, content farms, and listicles.
+- **Calendar-Aware Date Arithmetic**: Deterministically resolves dates like "On Monday", "3 November", "Last Tuesday", and "yesterday" with automatic year-rollover handling.
+- **Strict Evidence Re-Verification**: Changes are only reported if supported by a source published after the baseline date or an official discrepancy. Outdated articles before the baseline date are rejected as evidence.
+- **Enterprise Security**: Full SQL injection prevention (100% parameterized queries), XSS sanitization (`rehype-sanitize`), Helmet security headers, rate limiting, and client isolation.
+- **Hexagonal Monorepo**: Pure separation of concerns (`apps/server`, `apps/web`, `packages/shared`) verified by automated architectural boundary tests.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ChatAgent is engineered according to **Hexagonal Architecture (Ports & Adapters)** principles. Dependencies point strictly inward:
 
@@ -101,7 +82,7 @@ ChatAgent is engineered according to **Hexagonal Architecture (Ports & Adapters)
 
 ---
 
-## 🔄 Turn Lifecycle
+## Turn Lifecycle
 
 Every message flows through an optimized 7-stage deterministic pipeline:
 
@@ -150,7 +131,7 @@ sequenceDiagram
 
 ---
 
-## 🧪 The 3 Core Challenge Scenarios
+## The 3 Core Challenge Scenarios
 
 Here is how ChatAgent deterministically handles the 3 benchmark challenges:
 
@@ -180,7 +161,7 @@ Here is how ChatAgent deterministically handles the 3 benchmark challenges:
 
 ---
 
-## 🚫 What Was Considered and Rejected
+## What Was Considered and Rejected
 
 | Approach | Why It Was Rejected |
 | :--- | :--- |
@@ -190,7 +171,7 @@ Here is how ChatAgent deterministically handles the 3 benchmark challenges:
 
 ---
 
-## 🚀 Quickstart
+## Quickstart
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) v20+ (ESM support)
@@ -227,7 +208,7 @@ Open **`http://localhost:5173`** to chat with the agent!
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 | Variable | Required | Default | Description |
 | :--- | :---: | :--- | :--- |
@@ -242,7 +223,7 @@ Open **`http://localhost:5173`** to chat with the agent!
 
 ---
 
-## 📜 Available Scripts
+## Available Scripts
 
 | Command | Action |
 | :--- | :--- |
@@ -259,7 +240,7 @@ Open **`http://localhost:5173`** to chat with the agent!
 
 ---
 
-## ☁️ Deployment on Render
+## Deployment on Render
 
 Deploy both frontend and backend as a **Single Unified Web Service** on Render:
 
@@ -280,7 +261,7 @@ Deploy both frontend and backend as a **Single Unified Web Service** on Render:
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 ChatAgent/
@@ -309,6 +290,6 @@ ChatAgent/
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
