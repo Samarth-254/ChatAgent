@@ -190,16 +190,21 @@ export class InMemoryMessageRepository {
   }
 
   async getTimeline(userId) {
-    const userMsgs = this.messages.filter(m => m.user_id === userId);
-    const byDate = new Map();
+    const userMsgs = this.messages.filter(m => m.user_id === userId && m.role === 'user');
+    const grouped = {};
     for (const m of userMsgs) {
-      const d = m.local_date || m.created_at.slice(0, 10);
-      if (!byDate.has(d)) {
-        byDate.set(d, { date: d, count: 0 });
-      }
-      byDate.get(d).count++;
+      const d = m.local_date || (m.created_at ? m.created_at.slice(0, 10) : 'unknown');
+      if (!grouped[d]) grouped[d] = [];
+      grouped[d].push({
+        id: m.id,
+        sessionId: m.session_id,
+        content: m.content,
+        createdAt: m.created_at
+      });
     }
-    return Array.from(byDate.values()).sort((a, b) => b.date.localeCompare(a.date));
+    return Object.entries(grouped)
+      .map(([date, items]) => ({ date, items, count: items.length }))
+      .sort((a, b) => b.date.localeCompare(a.date));
   }
 }
 

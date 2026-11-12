@@ -1,15 +1,32 @@
 import { getAuthHeaders } from '../../../lib/clientId.js';
 
 export async function streamChatQuery({ sessionId, message, signal, onEvent }) {
-  const response = await fetch('/api/v1/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders()
-    },
-    body: JSON.stringify({ sessionId, message }),
-    signal
-  });
+  let response;
+  let attempts = 0;
+
+  while (attempts < 2) {
+    attempts++;
+    try {
+      response = await fetch('/api/v1/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ sessionId, message }),
+        signal
+      });
+      if (response.ok || (response.status !== 500 && response.status !== 502 && response.status !== 503)) {
+        break;
+      }
+      if (attempts < 2) {
+        await new Promise(r => setTimeout(r, 600));
+      }
+    } catch (err) {
+      if (attempts >= 2 || signal?.aborted) throw err;
+      await new Promise(r => setTimeout(r, 600));
+    }
+  }
 
   if (!response.ok) {
     let errorMsg = `Server error HTTP ${response.status}`;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Calendar, MessageSquare } from 'lucide-react';
 import { useMemoryTimeline } from '../hooks/useMemoryTimeline.js';
-import { formatTime } from '../../../lib/formatDate.js';
+import { formatTime, formatTimelineDateHeader } from '../../../lib/formatDate.js';
 
 export function MemoryPanel({ isOpen, onClose, onSelectSession }) {
   const { timeline, isLoading } = useMemoryTimeline();
@@ -60,7 +60,7 @@ export function MemoryPanel({ isOpen, onClose, onSelectSession }) {
           timeline.map((group) => (
             <div key={group.date} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>
-                {group.date}
+                {formatTimelineDateHeader(group.date)}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {group.items.map((item) => (

@@ -1,5 +1,9 @@
 import pg from 'pg';
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// Parse PostgreSQL DATE (OID 1082) as raw string 'YYYY-MM-DD' instead of converting to JS Date
+// This prevents UTC midnight shifts in timezones like Asia/Kolkata (GMT+05:30)
+types.setTypeParser(1082, (val) => val);
 
 export class PostgresDb {
   constructor(connectionString) {

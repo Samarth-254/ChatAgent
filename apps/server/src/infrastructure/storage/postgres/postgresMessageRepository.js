@@ -1,5 +1,14 @@
 import { extractTopicKeywords, selectBestBaseline, formatBaseline } from '../../../domain/recallPlanner.js';
 
+function normalizeLocalDate(ld) {
+  if (!ld) return '';
+  if (typeof ld === 'string') return ld.slice(0, 10);
+  if (ld instanceof Date) {
+    return ld.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  }
+  return String(ld).slice(0, 10);
+}
+
 function formatTurn(msg) {
   const d = new Date(msg.created_at);
   const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
@@ -88,7 +97,13 @@ export class PostgresMessageRepository {
           [userId, searchTerms]
         );
         if (rows.length === 0 && topic) {
-          const terms = topic.split(/\s+/).filter(w => w.length > 2);
+          let terms = topic.split(/\s+/).filter(w => w.length > 2);
+          terms = terms.flatMap(t => {
+            const tl = t.toLowerCase();
+            if (tl === 'birthday') return ['birthday', 'bday'];
+            if (tl === 'bday') return ['bday', 'birthday'];
+            return [t];
+          });
           if (terms.length > 0) {
             const orQuery = terms.map(t => `${t}:*`).join(' | ');
             const res = await this.db.query(
@@ -168,7 +183,7 @@ export class PostgresMessageRepository {
           candidatePairs.push({
             userMsg: rows[i],
             assistantMsg: rows[i + 1],
-            localDate: rows[i].local_date
+            localDate: normalizeLocalDate(rows[i].local_date)
           });
           i++; // skip assistant
         }
@@ -199,7 +214,7 @@ export class PostgresMessageRepository {
             bestPair = {
               userMsg: uRes.rows[0],
               assistantMsg,
-              localDate: assistantMsg.local_date
+              localDate: normalizeLocalDate(assistantMsg.local_date)
             };
           }
         }
@@ -221,7 +236,7 @@ export class PostgresMessageRepository {
   }
 
   async getTimeline(userId) {
-    const { rows } = await this.db.query(
+    const { rows: msgRows } = await this.db.query(
       `SELECT local_date, id, session_id, content, created_at
        FROM messages
        WHERE user_id = $1 AND role = 'user'
@@ -229,10 +244,9 @@ export class PostgresMessageRepository {
       [userId]
     );
 
-    // Group by local_date
     const grouped = {};
-    for (const r of rows) {
-      const key = r.local_date instanceof Date ? r.local_date.toISOString().slice(0, 10) : String(r.local_date);
+    for (const r of msgRows) {
+      const key = normalizeLocalDate(r.local_date);
       if (!grouped[key]) grouped[key] = [];
       grouped[key].push({
         id: r.id,

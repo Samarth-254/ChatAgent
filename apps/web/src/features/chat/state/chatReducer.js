@@ -171,12 +171,36 @@ export function chatReducer(state, action) {
     }
 
     case EventType.ERROR: {
+      const msgs = [...state.messages];
+      const last = msgs[msgs.length - 1];
+      const rawMsg = action.payload.message || 'An unexpected error occurred';
+      const friendlyErr = rawMsg.includes('429')
+        ? '⏳ The AI model provider is temporarily rate-limited (HTTP 429). Please wait 15–20 seconds and try again.'
+        : `⚠️ Request error: ${rawMsg}`;
+
+      if (last && last.role === 'assistant' && !last.content) {
+        msgs[msgs.length - 1] = {
+          ...last,
+          content: friendlyErr,
+          isError: true
+        };
+      } else {
+        msgs.push({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: friendlyErr,
+          isError: true,
+          created_at: new Date().toISOString()
+        });
+      }
+
       return {
         ...state,
         isStreaming: false,
         currentStatus: null,
         activeSearches: [],
-        error: action.payload.message
+        messages: msgs,
+        error: rawMsg
       };
     }
 
