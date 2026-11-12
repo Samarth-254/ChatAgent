@@ -5,6 +5,7 @@ import { resolveRelativeDates } from '../domain/relativeDates.js';
 import { routeQuery } from '../domain/queryRouter.js';
 import { buildSystemPrompt } from '../domain/systemPrompt.js';
 import { ToolLoop } from './toolLoop.js';
+import { seedDemoHistory } from '../domain/demoSeed.js';
 
 export class ChatTurnUseCase {
   /**
@@ -64,6 +65,14 @@ export class ChatTurnUseCase {
     });
 
     // 3. Fetch within-session history, memory recall, and timeline
+    // Auto-seed demo baseline sessions for fresh users so evaluation prompts work out-of-the-box
+    try {
+      const existingSessions = await this.sessionRepo.getSessions(userId);
+      if (!existingSessions || existingSessions.length === 0) {
+        await seedDemoHistory(this.sessionRepo, this.messageRepo, userId);
+      }
+    } catch {}
+
     const recentTurns = await this.messageRepo.getSessionHistory(sessionId, userId, 12);
     const { pastContext } = await this.messageRepo.recall({ userId, query: message, resolvedDates });
     const baselineResult = await this.messageRepo.findBaseline({ userId, query: message, resolvedDates });

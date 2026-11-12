@@ -2,6 +2,8 @@
 
 A full-stack conversational agent featuring live web research, deterministic temporal grounding, and cross-session memory in PostgreSQL.
 
+Live demo: <URL> *(Render free tier spins down on idle; allow ~30 seconds on cold start).*
+
 [Overview](#overview) • [Key Features](#key-features) • [Architecture](#architecture) • [Dataset Scenarios](#the-3-core-challenge-scenarios) • [Quickstart](#quickstart) • [Scripts](#available-scripts) • [Deployment](#deployment-on-render)
 
 ---
@@ -29,7 +31,7 @@ Standard LLM architectures hallucinate relative dates, confuse temporal bounds (
 - **Official Domain Prioritization**: Boosts official vendor domains (e.g. `hubspot.com`, `neon.tech`, `supabase.com`) to filter out SEO spam, content farms, and listicles.
 - **Calendar-Aware Date Arithmetic**: Deterministically resolves dates like "On Monday", "3 November", "Last Tuesday", and "yesterday" with automatic year-rollover handling.
 - **Strict Evidence Re-Verification**: Changes are only reported if supported by a source published after the baseline date or an official discrepancy. Outdated articles before the baseline date are rejected as evidence.
-- **Enterprise Security**: Full SQL injection prevention (100% parameterized queries), XSS sanitization (`rehype-sanitize`), Helmet security headers, rate limiting, and client isolation.
+- **Security Hardening**: SQL queries are parameterized via the pg driver, Markdown outputs are sanitized with rehype-sanitize, Helmet configures HTTP security headers, and rate limiting restricts request floods.
 - **Hexagonal Monorepo**: Pure separation of concerns (`apps/server`, `apps/web`, `packages/shared`) verified by automated architectural boundary tests.
 
 ---
@@ -154,9 +156,7 @@ Here is how ChatAgent deterministically handles the 3 benchmark challenges:
 
 ### Scenario 3: Ambiguous Relative Dates
 > *"Last Tuesday I asked you about Postgres hosting. Has any pricing changed since then?"*
-- **Candidate Branching**: On a Wednesday, "last Tuesday" could mean yesterday (7 days ago) or previous calendar week (8 days ago). The system resolves both candidates:
-  `candidates: ["2026-11-03", "2026-11-10"]`
-- **Topic-Scored Disambiguation**: Compares candidate dates against user history for "Postgres hosting". The date with the matching conversation wins deterministically.
+- **Candidate Branching**: On Wednesday, 11 Nov 2026, "last Tuesday" candidates are 10 Nov (yesterday, 1 day ago) and 3 Nov (Tuesday of the previous calendar week, 8 days ago). Recall picks the candidate whose stored conversation matches the topic ("Postgres hosting").
 - **Evidence Verification**: Enforces the evidence rule: articles published before the baseline date cannot be used as proof of a price change.
 
 ---
@@ -166,8 +166,11 @@ Here is how ChatAgent deterministically handles the 3 benchmark challenges:
 | Approach | Why It Was Rejected |
 | :--- | :--- |
 | **Vector Database (RAG)** | Cosine semantic similarity ignores calendar boundaries. Asking *"What did I ask last Tuesday?"* retrieves similar questions from arbitrary dates. Partitioned SQL + `tsvector` provides exact calendar matching with zero embedding latency. |
-| **Memory as an LLM Tool** | Disallowed by challenge constraints (single tool: `web_search`) and wastes 1–2 seconds on an extra LLM round-trip. Server-side SQL injection into system context is instantaneous (<5ms). |
+| **Memory as an LLM Tool** | Costs an extra model round trip before every answer and makes recall non-deterministic. Server-side SQL full-text recall into system context is deterministic and runs in <5ms. |
 | **Multi-Agent / Planner Chains** | Chaining multiple LLM calls (Planner &rarr; Researcher &rarr; Critic &rarr; Synthesizer) multiplies latency 3–5x and increases failure points. A lean, deterministic single-loop agent with parallel execution is faster and more reliable. |
+| **ORM** | Raw SQL with GIN index and tsvector gives direct index control with zero runtime abstraction overhead. |
+| **Next.js** | Unnecessary second server layer in front of an SSE streaming API; Vite SPA + Express is leaner and faster to deploy. |
+| **LLM-Based Router** | Adds 500–1500ms latency to every turn; deterministic rule engine routes in <1ms. |
 
 ---
 
@@ -216,8 +219,8 @@ Open **`http://localhost:5173`** to chat with the agent!
 | `TAVILY_API_KEY` | **Yes** | &mdash; | Tavily Search API key |
 | `DATABASE_URL` | *Optional* | In-Memory | Neon Postgres pooled connection string |
 | `LLM_BASE_URL` | *Optional* | `https://generativelanguage...` | OpenAI-compatible endpoint |
-| `FAST_MODEL` | *Optional* | `gemini-3.5-flash-lite` | Fast model for routing and tool calling |
-| `DEEP_MODEL` | *Optional* | `gemini-3.5-flash` | Deep model for final synthesis |
+| `FAST_MODEL` | *Optional* | `gemini-2.5-flash-lite` | Fast model for routing and tool calling |
+| `DEEP_MODEL` | *Optional* | `gemini-2.5-flash` | Deep model for final synthesis |
 | `USER_TZ` | *Optional* | System TZ | User timezone for date arithmetic |
 | `PORT` | *Optional* | `3000` | Backend Express server port |
 

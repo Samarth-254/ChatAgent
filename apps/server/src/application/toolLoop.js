@@ -48,8 +48,8 @@ export class ToolLoop {
       // FAST_MODEL for initial tool selection, activeModel (DEEP_MODEL) for synthesis
       const modelForRound = (forceThisRound && this.fastModel) ? this.fastModel : activeModel;
 
-      // On final round, omit tools to guarantee the model synthesizes the answer
-      const tools = isLastRound ? undefined : [WEB_SEARCH_TOOL];
+      // On final round or when search is explicitly disabled, omit tools to synthesize immediately
+      const tools = (isLastRound || route.disableSearch) ? undefined : [WEB_SEARCH_TOOL];
 
       let currentRoundCalls = null;
       const llmStart = Date.now();

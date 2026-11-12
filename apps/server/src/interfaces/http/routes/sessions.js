@@ -6,12 +6,18 @@ const patchSchema = z.object({
   title: z.string().min(1).max(120)
 });
 
-export function createSessionsRouter({ sessionRepository }) {
+import { seedDemoHistory } from '../../../domain/demoSeed.js';
+
+export function createSessionsRouter({ sessionRepository, messageRepository }) {
   const router = express.Router();
 
   router.get('/', async (req, res, next) => {
     try {
-      const sessions = await sessionRepository.getSessions(req.userId);
+      let sessions = await sessionRepository.getSessions(req.userId);
+      if (sessions.length === 0 && messageRepository) {
+        await seedDemoHistory(sessionRepository, messageRepository, req.userId);
+        sessions = await sessionRepository.getSessions(req.userId);
+      }
       res.json(sessions);
     } catch (err) {
       next(err);

@@ -11,19 +11,19 @@ export function routeQuery({
 
   const isGreeting = /^(hi|hello|hey|good\s+(morning|afternoon|evening)|howdy|greetings|who are you|what can you do)[\s!.,?]*$/i.test(lower);
   if (isGreeting) {
-    return { model: fastModel, reason: 'Chit-chat / greeting', forceSearch: false, searchDepth: 'basic', isDeep: false };
+    return { model: fastModel, reason: 'Chit-chat / greeting', forceSearch: false, disableSearch: true, searchDepth: 'basic', isDeep: false };
   }
 
   const isMath = /^[\d\s+\-*/().^%]+$/i.test(text) ||
     /^(what is|calculate|evaluate)\s+[\d\s+\-*/().^%]+[?]?$/i.test(lower) ||
     /\b(how much does it cost to run|what is \d+%\s+of)\b/i.test(lower);
   if (isMath) {
-    return { model: fastModel, reason: 'Mathematical computation', forceSearch: false, searchDepth: 'basic', isDeep: false };
+    return { model: fastModel, reason: 'Mathematical computation', forceSearch: false, disableSearch: true, searchDepth: 'basic', isDeep: false };
   }
 
   const isFormatting = /^(summarize this|rewrite|format as json|fix grammar|translate to)\b/i.test(lower);
   if (isFormatting) {
-    return { model: fastModel, reason: 'Text transformation / formatting', forceSearch: false, searchDepth: 'basic', isDeep: false };
+    return { model: fastModel, reason: 'Text transformation / formatting', forceSearch: false, disableSearch: true, searchDepth: 'basic', isDeep: false };
   }
 
   const isPureMemoryLookup = (
@@ -35,7 +35,7 @@ export function routeQuery({
   );
 
   if (isPureMemoryLookup) {
-    return { model: fastModel, reason: 'Direct historical log recall from memory', forceSearch: false, searchDepth: 'basic', isDeep: false };
+    return { model: fastModel, reason: 'Direct historical log recall from memory', forceSearch: false, disableSearch: true, searchDepth: 'basic', isDeep: false };
   }
 
   if (hasBaseline || (hasPastContext && /\b(since|changed|still correct|verify)\b/i.test(lower))) {
@@ -62,7 +62,7 @@ export function routeQuery({
     /\b(capital of|photosynthesis|how does\b.*work|definition of|explain\b.*algorithm|difference between tcp and udp|raft consensus)\b/i
   ];
   if (stableKnowledge.some(pattern => pattern.test(lower))) {
-    return { model: fastModel, reason: 'Stable general knowledge fact', forceSearch: false, searchDepth: 'basic', isDeep: false };
+    return { model: fastModel, reason: 'Stable general knowledge fact', forceSearch: false, disableSearch: true, searchDepth: 'basic', isDeep: false };
   }
 
   return { model: fastModel, reason: 'Standard conversational query', forceSearch: false, searchDepth: 'basic', isDeep: false };

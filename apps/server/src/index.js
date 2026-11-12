@@ -30,11 +30,6 @@ const webDistDir = path.join(rootDir, 'apps/web/dist');
 
 // Fail fast on missing keys in live runtime
 if (config.nodeEnv !== 'test') {
-  if (!config.databaseUrl) {
-    console.error('\n❌ ERROR: Missing required environment variable: DATABASE_URL');
-    console.error('Please configure a valid Neon PostgreSQL connection string in DATABASE_URL.\n');
-    process.exit(1);
-  }
   if (!config.llm.apiKey) {
     console.error('\n❌ ERROR: Missing required environment variable: LLM_API_KEY');
     console.error('Please configure LLM_API_KEY in your .env file or environment.\n');
@@ -100,7 +95,7 @@ app.use('/api/v1/health', createHealthRouter({ db }));
 const apiRouter = express.Router();
 apiRouter.use(clientAuthMiddleware);
 apiRouter.use('/chat', createChatRouter({ chatTurnUseCase, sessionRepository }));
-apiRouter.use('/sessions', createSessionsRouter({ sessionRepository }));
+apiRouter.use('/sessions', createSessionsRouter({ sessionRepository, messageRepository }));
 apiRouter.use('/memory', createMemoryRouter({ messageRepository }));
 
 app.use('/api/v1', apiRouter);
@@ -118,7 +113,7 @@ app.use(errorHandler);
 
 const server = app.listen(port, () => {
   console.log(`\n🚀 ChatAgent server listening at http://localhost:${port}`);
-  console.log(`   Database:    NEON (${db.type.toUpperCase()})`);
+  console.log(`   Database:    ${db ? db.type.toUpperCase() : 'IN-MEMORY (History lost on restart)'}`);
   console.log(`   Fast Model:  ${config.llm.fastModel}`);
   console.log(`   Deep Model:  ${config.llm.deepModel}`);
   console.log(`   User TZ:     ${config.clock.userTz || 'system'}\n`);
@@ -127,7 +122,7 @@ const server = app.listen(port, () => {
 const shutdown = async () => {
   console.log('\nShutting down gracefully...');
   server.close(async () => {
-    await db.close();
+    if (db) await db.close();
     process.exit(0);
   });
 };
